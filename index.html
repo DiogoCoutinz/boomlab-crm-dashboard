@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard CRM — BoomLab</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+    <!-- FullCalendar -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+    <!-- Day.js -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isBetween.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/weekOfYear.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+      body {
+        background: #0f0f0f;
+        color: #e5e5e5;
+      }
+
+      .card {
+        background: #1a1a1a;
+        border: 1px solid #2a2a2a;
+        transition: all 0.2s ease;
+      }
+
+      .card:hover {
+        border-color: #3a3a3a;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      .delta-positive {
+        color: #10b981;
+      }
+
+      .delta-negative {
+        color: #ef4444;
+      }
+
+      .delta-neutral {
+        color: #9ca3af;
+      }
+
+      select,
+      input[type="date"],
+      input[type="text"] {
+        background: #1a1a1a;
+        border: 1px solid #3a3a3a;
+        color: #e5e5e5;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+      }
+
+      select:focus,
+      input:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+
+      .btn {
+        background: #3b82f6;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn:hover {
+        background: #2563eb;
+      }
+
+      .btn:disabled {
+        background: #374151;
+        cursor: not-allowed;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th {
+        background: #1a1a1a;
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #3a3a3a;
+      }
+
+      td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #2a2a2a;
+      }
+
+      tr:hover {
+        background: #1f1f1f;
+      }
+
+      .chart-container {
+        position: relative;
+        height: 300px;
+      }
+
+      .skeleton {
+        background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+      }
+
+      @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      /* FullCalendar dark theme */
+      .fc {
+        background: #1a1a1a;
+        color: #e5e5e5;
+      }
+
+      .fc .fc-button {
+        background: #3b82f6;
+        border-color: #3b82f6;
+      }
+
+      .fc .fc-button:hover {
+        background: #2563eb;
+      }
+
+      .fc-theme-standard td,
+      .fc-theme-standard th {
+        border-color: #2a2a2a;
+      }
+
+      .fc-daygrid-day-number {
+        color: #e5e5e5;
+      }
+
+      .fc-col-header-cell-cushion {
+        color: #9ca3af;
+      }
+
+      .fc-event {
+        cursor: pointer;
+      }
+
+      .fc-event.status-confirmed {
+        background: #10b981;
+        border-color: #10b981;
+      }
+
+      .fc-event.status-noshow {
+        background: #ef4444;
+        border-color: #ef4444;
+      }
+
+      .fc-event.status-pending {
+        background: #f59e0b;
+        border-color: #f59e0b;
+      }
+
+      .insight-card {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        border: 1px solid #3b82f6;
+      }
+
+      .tab-btn {
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        color: #9ca3af;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-weight: 600;
+      }
+
+      .tab-btn:hover {
+        color: #e5e5e5;
+      }
+
+      .tab-btn.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .rank-bar {
+        height: 8px;
+        background: linear-gradient(90deg, #3b82f6 0%, #1e40af 100%);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+
+      .rank-item {
+        transition: all 0.2s ease;
+      }
+
+      .rank-item:hover {
+        background: #1f1f1f;
+      }
+
+      .medal {
+        font-size: 1.5rem;
+      }
+    </style>
+  </head>
+
+  <body class="font-sans">
+    <!-- Header -->
+    <header class="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-50">
+      <div class="container mx-auto px-6 py-4">
+        <h1 class="text-2xl font-bold">📊 Dashboard CRM — BoomLab</h1>
+      </div>
+    </header>
+
+    <!-- Filters -->
+    <section class="border-b border-gray-800 bg-black/30">
+      <div class="container mx-auto px-6 py-4">
+        <div class="flex flex-wrap gap-4 items-end">
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-400 mb-2">De</label>
+            <input type="date" id="filter-date-from" class="w-full" />
+          </div>
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-400 mb-2">Até</label>
+            <input type="date" id="filter-date-to" class="w-full" />
+          </div>
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-400 mb-2">Vista de Gráficos</label>
+            <select id="chart-view" class="w-full">
+              <option value="day">Por Dia</option>
+              <option value="week" selected>Por Semana</option>
+              <option value="month">Por Mês</option>
+            </select>
+          </div>
+          <button id="btn-refresh" class="btn">
+            🔄 Atualizar
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI Cards -->
+    <section class="container mx-auto px-6 py-8">
+      <div id="kpi-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Skeletons -->
+        <div class="card rounded-lg p-4">
+          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
+          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
+          <div class="skeleton h-3 w-16 rounded"></div>
+        </div>
+        <div class="card rounded-lg p-4">
+          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
+          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
+          <div class="skeleton h-3 w-16 rounded"></div>
+        </div>
+        <div class="card rounded-lg p-4">
+          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
+          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
+          <div class="skeleton h-3 w-16 rounded"></div>
+        </div>
+        <div class="card rounded-lg p-4">
+          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
+          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
+          <div class="skeleton h-3 w-16 rounded"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Insights -->
+    <section class="container mx-auto px-6 pb-8">
+      <div id="insights" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Will be populated dynamically -->
+      </div>
+    </section>
+
+    <!-- Tabs Navigation -->
+    <section class="container mx-auto px-6 pb-0">
+      <div class="border-b border-gray-800 flex gap-2">
+        <button class="tab-btn active" data-tab="contactos">
+          👥 Contactos
+        </button>
+        <button class="tab-btn" data-tab="reunioes">
+          📅 Reuniões
+        </button>
+        <button class="tab-btn" data-tab="consultores">
+          👔 Consultores
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="container mx-auto px-6 py-8">
+      
+      <!-- TAB: CONTACTOS -->
+      <div id="tab-contactos" class="tab-content active">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- Chart: Novos Contactos -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Novos Contactos</h3>
+            <div class="chart-container">
+              <canvas id="chart-contacts"></canvas>
+            </div>
+          </div>
+
+          <!-- Search + Table -->
+          <div class="card rounded-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-semibold">Lista de Contactos</h3>
+              <input
+                type="text"
+                id="search-contacts"
+                placeholder="🔍 Procurar..."
+                class="w-64 text-sm"
+              />
+            </div>
+            <div class="overflow-x-auto max-h-96 overflow-y-auto">
+              <table id="table-contacts">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>País</th>
+                    <th>Origem</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: REUNIÕES -->
+      <div id="tab-reunioes" class="tab-content">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- Calendar -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Calendário de Reuniões</h3>
+            <div id="calendar"></div>
+          </div>
+
+          <!-- Chart: Reuniões por período -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Reuniões Criadas</h3>
+            <div class="chart-container">
+              <canvas id="chart-meetings"></canvas>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="card rounded-lg p-6 lg:col-span-2">
+            <h3 class="text-lg font-semibold mb-4">Estatísticas de Reuniões</h3>
+            <div id="meetings-stats" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CONSULTORES -->
+      <div id="tab-consultores" class="tab-content">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Top 3 Podium -->
+          <div class="card rounded-lg p-6 lg:col-span-3">
+            <h3 class="text-lg font-semibold mb-6">🏆 Top 3 Consultores</h3>
+            <div id="top-consultants-podium" class="flex justify-center items-end gap-8">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Ranking Completo -->
+          <div class="card rounded-lg p-6 lg:col-span-2">
+            <h3 class="text-lg font-semibold mb-4">📊 Ranking Completo</h3>
+            <div id="consultants-ranking" class="space-y-3">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Stats Gerais -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">📈 Estatísticas</h3>
+            <div id="consultants-stats" class="space-y-3">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-800 bg-black/30 mt-12">
+      <div class="container mx-auto px-6 py-4 text-center">
+        <div class="text-sm text-gray-400">
+          Última atualização: <span id="last-update" class="font-mono">--:--</span>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // ========================================
+      // CONFIG
+      // ========================================
+
+      const CONFIG = {
+        supabase: {
+          url: 'https://uvvxvqrymdywxoqgnnvd.supabase.co',
+          anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dnh2cXJ5bWR5d3hvcWdubnZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODM3NDAsImV4cCI6MjA3NDY1OTc0MH0.3vNlo61Yl4c3XG7-8yDCKVBO4-f0iNMJeHXSSgzAI5w',
+        },
+        locale: 'pt-PT',
+        timezone: 'Europe/Lisbon',
+        colors: {
+          primary: '#3b82f6',
+          success: '#10b981',
+          danger: '#ef4444',
+          warning: '#f59e0b',
+        },
+      };
+
+      const supabase = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+
+      // Initialize Day.js
+      dayjs.extend(window.dayjs_plugin_utc);
+      dayjs.extend(window.dayjs_plugin_timezone);
+      dayjs.extend(window.dayjs_plugin_isBetween);
+      dayjs.extend(window.dayjs_plugin_weekOfYear);
+      dayjs.tz.setDefault(CONFIG.timezone);
+
+      // ========================================
+      // STATE
+      // ========================================
+
+      const state = {
+        contacts: [],
+        meetings: [],
+        dateFrom: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+        dateTo: dayjs().format('YYYY-MM-DD'),
+        chartView: 'week',
+        loading: false,
+        previousPeriodData: null,
+      };
+
+      const charts = {};
+      let calendar = null;
+
+      // ========================================
+      // FORMATTERS
+      // ========================================
+
+      const fmtNumber = (n) => {
+        if (n == null) return '—';
+        return new Intl.NumberFormat(CONFIG.locale).format(Math.round(n));
+      };
+
+      const fmtPercent = (n) => {
+        if (n == null) return '—';
+        return `${n.toFixed(1)}%`;
+      };
+
+      const fmtDate = (date) => {
+        return dayjs(date).format('DD/MM/YYYY');
+      };
+
+      const fmtDelta = (current, previous) => {
+        if (!previous || previous === 0) return null;
+        return ((current - previous) / previous) * 100;
+      };
+
+      // ========================================
+      // FETCH DATA
+      // ========================================
+
+      const fetchContacts = async (from, to) => {
+        const { data, error } = await supabase
+          .from('contactos')
+          .select('*')
+          .gte('data_criacao', from)
+          .lte('data_criacao', to + 'T23:59:59')
+          .order('data_criacao', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchMeetings = async (from, to) => {
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .gte('date_created', from)
+          .lte('date_created', to + 'T23:59:59')
+          .order('date_created', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchAllMeetings = async () => {
+        // Fetch all meetings for calendar (next 3 months)
+        const from = dayjs().subtract(1, 'month').format('YYYY-MM-DD');
+        const to = dayjs().add(3, 'month').format('YYYY-MM-DD');
+
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .gte('start_time', from)
+          .lte('start_time', to + 'T23:59:59');
+
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchPreviousPeriodData = async (from, to) => {
+        const fromDate = dayjs(from);
+        const toDate = dayjs(to);
+        const duration = toDate.diff(fromDate, 'day') + 1;
+
+        const prevTo = fromDate.subtract(1, 'day').format('YYYY-MM-DD');
+        const prevFrom = fromDate.subtract(duration, 'day').format('YYYY-MM-DD');
+
+        const [contacts, meetings] = await Promise.all([
+          fetchContacts(prevFrom, prevTo),
+          fetchMeetings(prevFrom, prevTo),
+        ]);
+
+        return { contacts, meetings };
+      };
+
+      // ========================================
+      // COMPUTE KPIs
+      // ========================================
+
+      const computeKPIs = (contacts, meetings) => {
+        const today = dayjs().tz(CONFIG.timezone).format('YYYY-MM-DD');
+
+        const totalContacts = contacts.length;
+
+        const totalMeetings = meetings.length;
+
+        const confirmedToday = meetings.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today && (m.status === 'confirmed' || m.status === 'completed');
+        }).length;
+
+        const noshowsToday = meetings.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today && m.status === 'noshow';
+        }).length;
+
+        return {
+          totalContacts,
+          totalMeetings,
+          confirmedToday,
+          noshowsToday,
+        };
+      };
+
+      const computeInsights = (current, previous, currentMeetings, previousMeetings) => {
+        const insights = [];
+
+        // Insight 1: Contactos
+        const contactDelta = fmtDelta(current.totalContacts, previous.totalContacts);
+        if (contactDelta !== null) {
+          const sign = contactDelta > 0 ? '+' : '';
+          const trend = contactDelta > 0 ? 'cresceram' : 'reduziram';
+          insights.push({
+            text: `${sign}${contactDelta.toFixed(1)}% de contactos criados face ao período anterior.`,
+            type: contactDelta > 0 ? 'positive' : 'negative',
+          });
+        }
+
+        // Insight 2: Reuniões
+        const meetingDelta = current.totalMeetings - previous.totalMeetings;
+        if (meetingDelta !== 0) {
+          const sign = meetingDelta > 0 ? '+' : '';
+          insights.push({
+            text: `A equipa marcou ${sign}${meetingDelta} reuniões neste período.`,
+            type: meetingDelta > 0 ? 'positive' : 'negative',
+          });
+        }
+
+        // Insight 3: No-show rate
+        const currentNoShows = currentMeetings.filter(m => m.status === 'noshow').length;
+        const previousNoShows = previousMeetings.filter(m => m.status === 'noshow').length;
+        const currentRate = currentMeetings.length > 0 ? (currentNoShows / currentMeetings.length) * 100 : 0;
+        const previousRate = previousMeetings.length > 0 ? (previousNoShows / previousMeetings.length) * 100 : 0;
+        const noshowDelta = currentRate - previousRate;
+
+        if (Math.abs(noshowDelta) > 0.5) {
+          const sign = noshowDelta > 0 ? '+' : '';
+          const trend = noshowDelta > 0 ? 'aumentou' : 'reduziu';
+          insights.push({
+            text: `Taxa de no-show ${trend} ${Math.abs(noshowDelta).toFixed(1)}%.`,
+            type: noshowDelta < 0 ? 'positive' : 'negative',
+          });
+        }
+
+        return insights;
+      };
+
+      // ========================================
+      // RENDER
+      // ========================================
+
+      const renderKPICards = (current, previous) => {
+        const kpis = [
+          {
+            label: 'Total de Contactos',
+            value: current.totalContacts,
+            prev: previous.totalContacts,
+            icon: '👥',
+          },
+          {
+            label: 'Total de Reuniões',
+            value: current.totalMeetings,
+            prev: previous.totalMeetings,
+            icon: '📅',
+          },
+          {
+            label: 'Reuniões Confirmadas Hoje',
+            value: current.confirmedToday,
+            prev: previous.confirmedToday,
+            icon: '✅',
+          },
+          {
+            label: 'No-shows Hoje',
+            value: current.noshowsToday,
+            prev: previous.noshowsToday,
+            icon: '❌',
+            invertDelta: true,
+          },
+        ];
+
+        const html = kpis
+          .map((kpi) => {
+            const delta = fmtDelta(kpi.value, kpi.prev);
+            const deltaClass =
+              delta == null
+                ? 'delta-neutral'
+                : delta > 0
+                ? kpi.invertDelta
+                  ? 'delta-negative'
+                  : 'delta-positive'
+                : kpi.invertDelta
+                ? 'delta-positive'
+                : 'delta-negative';
+            const deltaIcon = delta == null ? '' : delta > 0 ? '↑' : '↓';
+            const deltaText =
+              delta == null
+                ? '—'
+                : `${deltaIcon} ${Math.abs(delta).toFixed(1)}%`;
+
+            return `
+            <div class="card rounded-lg p-4">
+              <div class="text-sm text-gray-400 mb-1">${kpi.icon} ${kpi.label}</div>
+              <div class="text-2xl font-bold mb-1">${fmtNumber(kpi.value)}</div>
+              <div class="text-xs ${deltaClass}">${deltaText}</div>
+            </div>
+          `;
+          })
+          .join('');
+
+        document.getElementById('kpi-cards').innerHTML = html;
+      };
+
+      const renderInsights = (insights) => {
+        if (!insights || insights.length === 0) {
+          document.getElementById('insights').innerHTML = '';
+          return;
+        }
+
+        const html = insights
+          .map((insight) => {
+            return `
+            <div class="insight-card rounded-lg p-4 text-sm">
+              <span class="font-semibold">💡</span> ${insight.text}
+            </div>
+          `;
+          })
+          .join('');
+
+        document.getElementById('insights').innerHTML = html;
+      };
+
+      const renderContactsChart = (contacts) => {
+        const ctx = document.getElementById('chart-contacts');
+        if (!ctx) return;
+
+        if (charts.contacts) charts.contacts.destroy();
+
+        // Group by day, week, or month
+        const grouped = groupByPeriod(contacts, 'data_criacao', state.chartView);
+
+        const labels = Object.keys(grouped).sort();
+        const data = labels.map((label) => grouped[label].length);
+
+        charts.contacts = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Novos Contactos',
+                data,
+                backgroundColor: CONFIG.colors.success,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+            },
+          },
+        });
+      };
+
+      const renderMeetingsChart = (meetings) => {
+        const ctx = document.getElementById('chart-meetings');
+        if (!ctx) return;
+
+        if (charts.meetings) charts.meetings.destroy();
+
+        // Group by day, week, or month
+        const grouped = groupByPeriod(meetings, 'date_created', state.chartView);
+
+        const labels = Object.keys(grouped).sort();
+        const data = labels.map((label) => grouped[label].length);
+
+        charts.meetings = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Reuniões Criadas',
+                data,
+                borderColor: CONFIG.colors.primary,
+                backgroundColor: 'transparent',
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+            },
+          },
+        });
+      };
+
+      const renderContactsTable = (contacts) => {
+        const tbody = document.querySelector('#table-contacts tbody');
+        if (!tbody) return;
+
+        const html = contacts
+          .slice(0, 50)
+          .map((contact) => {
+            return `
+            <tr>
+              <td>${contact.primeiro_nome || contact.nome_completo || '—'}</td>
+              <td class="text-sm font-mono">${contact.email || '—'}</td>
+              <td>${contact.pais || '—'}</td>
+              <td>${contact.origem || '—'}</td>
+              <td class="text-sm">${fmtDate(contact.data_criacao)}</td>
+            </tr>
+          `;
+          })
+          .join('');
+
+        tbody.innerHTML = html || '<tr><td colspan="5" class="text-center text-gray-500">Sem contactos</td></tr>';
+      };
+
+      const renderMeetingsStats = (meetings) => {
+        const total = meetings.length;
+        const confirmed = meetings.filter(m => m.status === 'confirmed' || m.status === 'completed').length;
+        const noshows = meetings.filter(m => m.status === 'noshow').length;
+        const pending = meetings.filter(m => m.status === 'pending').length;
+        const noshowRate = total > 0 ? (noshows / total) * 100 : 0;
+
+        // Previous period comparison
+        let comparisonHtml = '';
+        if (state.previousPeriodData) {
+          const prevTotal = state.previousPeriodData.meetings.length;
+          const delta = total - prevTotal;
+          const deltaClass = delta > 0 ? 'delta-positive' : delta < 0 ? 'delta-negative' : 'delta-neutral';
+          const sign = delta > 0 ? '+' : '';
+          comparisonHtml = `
+            <div class="text-center">
+              <div class="text-sm text-gray-400 mb-1">vs. Período Anterior</div>
+              <div class="${deltaClass} text-2xl font-bold">${sign}${delta}</div>
+            </div>
+          `;
+        }
+
+        const html = `
+          <div class="text-center">
+            <div class="text-sm text-gray-400 mb-1">Total Reuniões</div>
+            <div class="text-2xl font-bold">${total}</div>
+          </div>
+          <div class="text-center">
+            <div class="text-sm text-gray-400 mb-1">Confirmadas</div>
+            <div class="text-2xl font-bold text-green-500">${confirmed}</div>
+          </div>
+          <div class="text-center">
+            <div class="text-sm text-gray-400 mb-1">Pendentes</div>
+            <div class="text-2xl font-bold text-yellow-500">${pending}</div>
+          </div>
+          <div class="text-center">
+            <div class="text-sm text-gray-400 mb-1">No-shows</div>
+            <div class="text-2xl font-bold text-red-500">${noshows}</div>
+          </div>
+          <div class="text-center">
+            <div class="text-sm text-gray-400 mb-1">Taxa No-show</div>
+            <div class="text-2xl font-bold">${fmtPercent(noshowRate)}</div>
+          </div>
+          ${comparisonHtml}
+        `;
+
+        document.getElementById('meetings-stats').innerHTML = html;
+      };
+
+      const renderConsultantsPodium = (meetings) => {
+        const byConsultant = {};
+        meetings.forEach(m => {
+          const consultant = m.created_by || 'Unknown';
+          if (!byConsultant[consultant]) {
+            byConsultant[consultant] = { total: 0, confirmed: 0, noshows: 0 };
+          }
+          byConsultant[consultant].total++;
+          if (m.status === 'confirmed' || m.status === 'completed') byConsultant[consultant].confirmed++;
+          if (m.status === 'noshow') byConsultant[consultant].noshows++;
+        });
+
+        const sorted = Object.entries(byConsultant)
+          .map(([name, stats]) => ({ name, ...stats }))
+          .sort((a, b) => b.total - a.total);
+
+        const top3 = sorted.slice(0, 3);
+        const medals = ['🥇', '🥈', '🥉'];
+        const heights = ['180px', '220px', '160px']; // 2nd, 1st, 3rd
+        const order = [1, 0, 2]; // Display order: 2nd, 1st, 3rd
+
+        const html = order.map(idx => {
+          if (!top3[idx]) return '';
+          const c = top3[idx];
+          const height = heights[idx];
+          return `
+            <div class="text-center" style="width: 150px;">
+              <div class="medal mb-2">${medals[idx]}</div>
+              <div class="font-bold text-lg mb-1">${c.name}</div>
+              <div class="text-3xl font-bold text-blue-500 mb-2">${c.total}</div>
+              <div class="bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg flex items-end justify-center" style="height: ${height};">
+                <div class="text-white text-sm pb-3 font-semibold">#${idx + 1}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('top-consultants-podium').innerHTML = html;
+      };
+
+      const renderConsultantsRanking = (meetings) => {
+        const byConsultant = {};
+        meetings.forEach(m => {
+          const consultant = m.created_by || 'Unknown';
+          if (!byConsultant[consultant]) {
+            byConsultant[consultant] = { total: 0, confirmed: 0, noshows: 0 };
+          }
+          byConsultant[consultant].total++;
+          if (m.status === 'confirmed' || m.status === 'completed') byConsultant[consultant].confirmed++;
+          if (m.status === 'noshow') byConsultant[consultant].noshows++;
+        });
+
+        const sorted = Object.entries(byConsultant)
+          .map(([name, stats]) => ({ name, ...stats }))
+          .sort((a, b) => b.total - a.total);
+
+        const maxTotal = sorted[0]?.total || 1;
+
+        const html = sorted.map((c, idx) => {
+          const noshowRate = c.total > 0 ? (c.noshows / c.total) * 100 : 0;
+          const barWidth = (c.total / maxTotal) * 100;
+          return `
+            <div class="rank-item p-3 rounded-lg border border-gray-800">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3">
+                  <div class="text-gray-500 font-bold w-8">#${idx + 1}</div>
+                  <div class="font-semibold">${c.name}</div>
+                </div>
+                <div class="text-2xl font-bold text-blue-500">${c.total}</div>
+              </div>
+              <div class="rank-bar" style="width: ${barWidth}%;"></div>
+              <div class="flex gap-4 mt-2 text-xs text-gray-400">
+                <span>✅ ${c.confirmed} confirmadas</span>
+                <span>❌ ${c.noshows} no-shows</span>
+                <span>📊 ${fmtPercent(noshowRate)} taxa no-show</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('consultants-ranking').innerHTML = html;
+      };
+
+      const renderConsultantsStats = (meetings) => {
+        const byConsultant = {};
+        meetings.forEach(m => {
+          const consultant = m.created_by || 'Unknown';
+          byConsultant[consultant] = (byConsultant[consultant] || 0) + 1;
+        });
+
+        const total = Object.keys(byConsultant).length;
+        const avgPerConsultant = meetings.length / total;
+        const sorted = Object.values(byConsultant).sort((a, b) => b - a);
+        const median = sorted[Math.floor(sorted.length / 2)] || 0;
+
+        // Previous period comparison
+        let comparisonHtml = '';
+        if (state.previousPeriodData) {
+          const prevByConsultant = {};
+          state.previousPeriodData.meetings.forEach(m => {
+            const consultant = m.created_by || 'Unknown';
+            prevByConsultant[consultant] = (prevByConsultant[consultant] || 0) + 1;
+          });
+          const prevTotal = state.previousPeriodData.meetings.length;
+          const prevAvg = prevTotal / Object.keys(prevByConsultant).length;
+          const delta = avgPerConsultant - prevAvg;
+          const deltaClass = delta > 0 ? 'delta-positive' : delta < 0 ? 'delta-negative' : 'delta-neutral';
+          const sign = delta > 0 ? '+' : '';
+          comparisonHtml = `
+            <div class="pt-3 border-t border-gray-700">
+              <div class="flex justify-between">
+                <span>vs. Período Anterior</span>
+                <span class="${deltaClass} font-bold">${sign}${delta.toFixed(1)}</span>
+              </div>
+            </div>
+          `;
+        }
+
+        const html = `
+          <div class="flex justify-between">
+            <span>Consultores Ativos</span>
+            <span class="font-bold">${total}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Média por Consultor</span>
+            <span class="font-bold">${avgPerConsultant.toFixed(1)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Mediana</span>
+            <span class="font-bold">${median}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Top Performer</span>
+            <span class="font-bold text-blue-500">${sorted[0] || 0}</span>
+          </div>
+          ${comparisonHtml}
+        `;
+
+        document.getElementById('consultants-stats').innerHTML = html;
+      };
+
+      const renderCalendar = (allMeetings) => {
+        const calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
+
+        const events = allMeetings.map(m => {
+          let className = 'status-pending';
+          if (m.status === 'confirmed' || m.status === 'completed') className = 'status-confirmed';
+          if (m.status === 'noshow') className = 'status-noshow';
+
+          return {
+            title: m.contact_email || 'Reunião',
+            start: m.start_time,
+            className: className,
+            extendedProps: {
+              id: m.id,
+              consultant: m.created_by,
+              status: m.status,
+              notes: m.notes,
+            },
+          };
+        });
+
+        if (calendar) {
+          calendar.removeAllEvents();
+          calendar.addEventSource(events);
+        } else {
+          calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+            },
+            events: events,
+            eventClick: function(info) {
+              const { id, consultant, status, notes } = info.event.extendedProps;
+              alert(`Reunião: ${info.event.title}\nConsultor: ${consultant || '—'}\nStatus: ${status || '—'}\nNotas: ${notes || '—'}`);
+            },
+            height: 'auto',
+            themeSystem: 'standard',
+          });
+
+          calendar.render();
+        }
+      };
+
+      // ========================================
+      // GROUPING
+      // ========================================
+
+      const groupByPeriod = (items, dateField, period) => {
+        const grouped = {};
+
+        items.forEach(item => {
+          const date = dayjs(item[dateField]);
+          let key;
+
+          if (period === 'day') {
+            key = date.format('DD/MM');
+          } else if (period === 'week') {
+            key = `Sem ${date.week()}`;
+          } else if (period === 'month') {
+            key = date.format('MMM/YY');
+          }
+
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(item);
+        });
+
+        return grouped;
+      };
+
+      // ========================================
+      // SEARCH
+      // ========================================
+
+      const setupSearch = () => {
+        const searchInput = document.getElementById('search-contacts');
+        searchInput.addEventListener('input', (e) => {
+          const query = e.target.value.toLowerCase();
+          const filtered = state.contacts.filter(c => {
+            const name = (c.primeiro_nome || c.nome_completo || '').toLowerCase();
+            const email = (c.email || '').toLowerCase();
+            const pais = (c.pais || '').toLowerCase();
+            return name.includes(query) || email.includes(query) || pais.includes(query);
+          });
+          renderContactsTable(filtered);
+        });
+      };
+
+      // ========================================
+      // FETCH ALL
+      // ========================================
+
+      const fetchAllData = async () => {
+        if (state.loading) return;
+
+        state.loading = true;
+        document.getElementById('btn-refresh').disabled = true;
+
+        try {
+          const from = state.dateFrom;
+          const to = state.dateTo;
+
+          const [contacts, meetings, allMeetings, previousData] = await Promise.all([
+            fetchContacts(from, to),
+            fetchMeetings(from, to),
+            fetchAllMeetings(),
+            fetchPreviousPeriodData(from, to),
+          ]);
+
+          state.contacts = contacts;
+          state.meetings = meetings;
+          state.previousPeriodData = previousData;
+
+          // Compute KPIs
+          const currentKPIs = computeKPIs(contacts, meetings);
+          const previousKPIs = computeKPIs(previousData.contacts, previousData.meetings);
+
+          // Render
+          renderKPICards(currentKPIs, previousKPIs);
+          renderInsights(computeInsights(currentKPIs, previousKPIs, meetings, previousData.meetings));
+          renderContactsChart(contacts);
+          renderContactsTable(contacts);
+          renderMeetingsChart(meetings);
+          renderMeetingsStats(meetings);
+          renderCalendar(allMeetings);
+          renderConsultantsPodium(meetings);
+          renderConsultantsRanking(meetings);
+          renderConsultantsStats(meetings);
+
+          // Update timestamp
+          document.getElementById('last-update').textContent = dayjs().tz(CONFIG.timezone).format('HH:mm');
+        } catch (error) {
+          console.error('Error fetching data:', error);
+          alert('Erro ao carregar dados. Verifica a consola.');
+        } finally {
+          state.loading = false;
+          document.getElementById('btn-refresh').disabled = false;
+        }
+      };
+
+      // ========================================
+      // INIT
+      // ========================================
+
+      const setupTabs = () => {
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-tab');
+
+            // Update buttons
+            tabButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update content
+            tabContents.forEach(content => {
+              content.classList.remove('active');
+              if (content.id === `tab-${targetTab}`) {
+                content.classList.add('active');
+              }
+            });
+
+            // Re-render calendar if switching to meetings tab
+            if (targetTab === 'reunioes' && calendar) {
+              setTimeout(() => calendar.render(), 100);
+            }
+          });
+        });
+      };
+
+      const init = async () => {
+        // Set default date range
+        document.getElementById('filter-date-from').value = state.dateFrom;
+        document.getElementById('filter-date-to').value = state.dateTo;
+
+        // Event listeners
+        document.getElementById('filter-date-from').addEventListener('change', (e) => {
+          state.dateFrom = e.target.value;
+          fetchAllData();
+        });
+
+        document.getElementById('filter-date-to').addEventListener('change', (e) => {
+          state.dateTo = e.target.value;
+          fetchAllData();
+        });
+
+        document.getElementById('chart-view').addEventListener('change', (e) => {
+          state.chartView = e.target.value;
+          renderContactsChart(state.contacts);
+          renderMeetingsChart(state.meetings);
+        });
+
+        document.getElementById('btn-refresh').addEventListener('click', () => {
+          fetchAllData();
+        });
+
+        setupTabs();
+        setupSearch();
+
+        // Initial fetch
+        await fetchAllData();
+      };
+
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>
+
