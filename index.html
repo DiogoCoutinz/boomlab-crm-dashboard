@@ -225,6 +225,133 @@
       .medal {
         font-size: 1.5rem;
       }
+
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-overlay.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: #1a1a1a;
+        border: 1px solid #3a3a3a;
+        border-radius: 12px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: modalSlideIn 0.2s ease-out;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #2a2a2a;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-body {
+        padding: 1.5rem;
+      }
+
+      .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #2a2a2a;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .modal-close {
+        background: transparent;
+        border: none;
+        color: #9ca3af;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+      }
+
+      .modal-close:hover {
+        background: #2a2a2a;
+        color: #e5e5e5;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      .status-badge.confirmed {
+        background: #10b98120;
+        color: #10b981;
+      }
+
+      .status-badge.noshow {
+        background: #ef444420;
+        color: #ef4444;
+      }
+
+      .status-badge.pending {
+        background: #f59e0b20;
+        color: #f59e0b;
+      }
+
+      .status-badge.completed {
+        background: #3b82f620;
+        color: #3b82f6;
+      }
+
+      .info-row {
+        display: flex;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #2a2a2a;
+      }
+
+      .info-row:last-child {
+        border-bottom: none;
+      }
+
+      .info-label {
+        color: #9ca3af;
+        min-width: 120px;
+        font-weight: 500;
+      }
+
+      .info-value {
+        color: #e5e5e5;
+        flex: 1;
+      }
     </style>
   </head>
 
@@ -418,6 +545,22 @@
       </div>
 
     </section>
+
+    <!-- Modal -->
+    <div id="meeting-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="text-xl font-bold">📅 Detalhes da Reunião</h3>
+          <button class="modal-close" onclick="closeMeetingModal()">✕</button>
+        </div>
+        <div class="modal-body" id="modal-body-content">
+          <!-- Populated via JS -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn" onclick="closeMeetingModal()">Fechar</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Footer -->
     <footer class="border-t border-gray-800 bg-black/30 mt-12">
@@ -1023,6 +1166,12 @@
         const calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
 
+        // Store meetings data for modal access
+        window.meetingsData = {};
+        allMeetings.forEach(m => {
+          window.meetingsData[m.id] = m;
+        });
+
         const events = allMeetings.map(m => {
           let className = 'status-pending';
           if (m.status === 'confirmed' || m.status === 'completed') className = 'status-confirmed';
@@ -1033,10 +1182,7 @@
             start: m.start_time,
             className: className,
             extendedProps: {
-              id: m.id,
-              consultant: m.created_by,
-              status: m.status,
-              notes: m.notes,
+              meetingId: m.id,
             },
           };
         });
@@ -1054,8 +1200,11 @@
             },
             events: events,
             eventClick: function(info) {
-              const { id, consultant, status, notes } = info.event.extendedProps;
-              alert(`Reunião: ${info.event.title}\nConsultor: ${consultant || '—'}\nStatus: ${status || '—'}\nNotas: ${notes || '—'}`);
+              const meetingId = info.event.extendedProps.meetingId;
+              const meeting = window.meetingsData[meetingId];
+              if (meeting) {
+                showMeetingModal(meeting);
+              }
             },
             height: 'auto',
             themeSystem: 'standard',
@@ -1064,6 +1213,108 @@
           calendar.render();
         }
       };
+
+      // ========================================
+      // MODAL
+      // ========================================
+
+      const showMeetingModal = (meeting) => {
+        const statusLabels = {
+          confirmed: 'Confirmada',
+          completed: 'Concluída',
+          noshow: 'No-show',
+          pending: 'Pendente',
+          cancelled: 'Cancelada'
+        };
+
+        const statusClass = meeting.status || 'pending';
+        const statusText = statusLabels[meeting.status] || 'Desconhecido';
+
+        const startTime = dayjs(meeting.start_time);
+        const endTime = meeting.end_time ? dayjs(meeting.end_time) : null;
+
+        const html = `
+          <div class="space-y-4">
+            <div class="info-row">
+              <div class="info-label">Status</div>
+              <div class="info-value">
+                <span class="status-badge ${statusClass}">${statusText}</span>
+              </div>
+            </div>
+
+            <div class="info-row">
+              <div class="info-label">Contacto</div>
+              <div class="info-value font-mono">${meeting.contact_email || '—'}</div>
+            </div>
+
+            ${meeting.contact_name ? `
+            <div class="info-row">
+              <div class="info-label">Nome</div>
+              <div class="info-value">${meeting.contact_name}</div>
+            </div>
+            ` : ''}
+
+            <div class="info-row">
+              <div class="info-label">Data/Hora</div>
+              <div class="info-value">
+                ${startTime.format('DD/MM/YYYY [às] HH:mm')}
+                ${endTime ? ` - ${endTime.format('HH:mm')}` : ''}
+              </div>
+            </div>
+
+            ${meeting.created_by ? `
+            <div class="info-row">
+              <div class="info-label">Consultor</div>
+              <div class="info-value">${meeting.created_by}</div>
+            </div>
+            ` : ''}
+
+            ${meeting.meeting_link ? `
+            <div class="info-row">
+              <div class="info-label">Link</div>
+              <div class="info-value">
+                <a href="${meeting.meeting_link}" target="_blank" class="text-blue-500 hover:text-blue-400 underline">
+                  Abrir reunião
+                </a>
+              </div>
+            </div>
+            ` : ''}
+
+            ${meeting.notes ? `
+            <div class="info-row">
+              <div class="info-label">Notas</div>
+              <div class="info-value">${meeting.notes}</div>
+            </div>
+            ` : ''}
+
+            <div class="info-row">
+              <div class="info-label">ID</div>
+              <div class="info-value font-mono text-sm text-gray-500">${meeting.id}</div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('modal-body-content').innerHTML = html;
+        document.getElementById('meeting-modal').classList.add('active');
+      };
+
+      const closeMeetingModal = () => {
+        document.getElementById('meeting-modal').classList.remove('active');
+      };
+
+      // Close modal on overlay click
+      document.addEventListener('click', (e) => {
+        if (e.target.id === 'meeting-modal') {
+          closeMeetingModal();
+        }
+      });
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeMeetingModal();
+        }
+      });
 
       // ========================================
       // GROUPING
