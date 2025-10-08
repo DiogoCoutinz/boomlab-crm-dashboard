@@ -367,15 +367,24 @@
     <section class="border-b border-gray-800 bg-black/30">
       <div class="container mx-auto px-6 py-4">
         <div class="flex flex-wrap gap-4 items-end">
-          <div class="flex-1 min-w-[200px]">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Atalhos</label>
+            <div class="flex gap-2">
+              <button class="btn" style="background: #374151; padding: 0.5rem 0.75rem;" onclick="setDateRange('today')">Hoje</button>
+              <button class="btn" style="background: #374151; padding: 0.5rem 0.75rem;" onclick="setDateRange('week')">Semana</button>
+              <button class="btn" style="background: #374151; padding: 0.5rem 0.75rem;" onclick="setDateRange('month')">Mês</button>
+              <button class="btn" style="background: #374151; padding: 0.5rem 0.75rem;" onclick="setDateRange('3months')">3 Meses</button>
+            </div>
+          </div>
+          <div class="flex-1 min-w-[180px]">
             <label class="block text-sm text-gray-400 mb-2">De</label>
             <input type="date" id="filter-date-from" class="w-full" />
           </div>
-          <div class="flex-1 min-w-[200px]">
+          <div class="flex-1 min-w-[180px]">
             <label class="block text-sm text-gray-400 mb-2">Até</label>
             <input type="date" id="filter-date-to" class="w-full" />
           </div>
-          <div class="flex-1 min-w-[200px]">
+          <div class="flex-1 min-w-[180px]">
             <label class="block text-sm text-gray-400 mb-2">Vista de Gráficos</label>
             <select id="chart-view" class="w-full">
               <option value="day">Por Dia</option>
@@ -392,28 +401,26 @@
 
     <!-- KPI Cards -->
     <section class="container mx-auto px-6 py-8">
-      <div id="kpi-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Skeletons -->
-        <div class="card rounded-lg p-4">
-          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
-          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
-          <div class="skeleton h-3 w-16 rounded"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- KPIs do Período -->
+        <div class="lg:col-span-2">
+          <h3 class="text-sm text-gray-400 mb-3 font-semibold">📊 Total no Período</h3>
+          <div id="kpi-cards-period" class="grid grid-cols-2 gap-4">
+            <!-- Populated via JS -->
+          </div>
         </div>
-        <div class="card rounded-lg p-4">
-          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
-          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
-          <div class="skeleton h-3 w-16 rounded"></div>
+
+        <!-- KPIs de Hoje -->
+        <div>
+          <h3 class="text-sm text-gray-400 mb-3 font-semibold">📅 Hoje</h3>
+          <div class="card rounded-lg p-5 border-2 border-blue-900 bg-gradient-to-br from-blue-950/30 to-transparent">
+            <div id="kpi-cards-today" class="grid grid-cols-2 gap-4">
+              <!-- Populated via JS -->
+            </div>
+          </div>
         </div>
-        <div class="card rounded-lg p-4">
-          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
-          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
-          <div class="skeleton h-3 w-16 rounded"></div>
-        </div>
-        <div class="card rounded-lg p-4">
-          <div class="skeleton h-4 w-32 mb-2 rounded"></div>
-          <div class="skeleton h-8 w-20 mb-2 rounded"></div>
-          <div class="skeleton h-3 w-16 rounded"></div>
-        </div>
+
       </div>
     </section>
 
@@ -434,7 +441,7 @@
           📅 Reuniões
         </button>
         <button class="tab-btn" data-tab="consultores">
-          👔 Consultores
+          💼 Departamento Comercial
         </button>
       </div>
     </section>
@@ -519,7 +526,7 @@
           
           <!-- Top 3 Podium -->
           <div class="card rounded-lg p-6 lg:col-span-3">
-            <h3 class="text-lg font-semibold mb-6">🏆 Top 3 Consultores</h3>
+            <h3 class="text-lg font-semibold mb-6">🏆 Top 3 Comerciais</h3>
             <div id="top-consultants-podium" class="flex justify-center items-end gap-8">
               <!-- Populated via JS -->
             </div>
@@ -527,7 +534,7 @@
 
           <!-- Ranking Completo -->
           <div class="card rounded-lg p-6 lg:col-span-2">
-            <h3 class="text-lg font-semibold mb-4">📊 Ranking Completo</h3>
+            <h3 class="text-lg font-semibold mb-4">📊 Ranking de Desempenho</h3>
             <div id="consultants-ranking" class="space-y-3">
               <!-- Populated via JS -->
             </div>
@@ -535,7 +542,7 @@
 
           <!-- Stats Gerais -->
           <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">📈 Estatísticas</h3>
+            <h3 class="text-lg font-semibold mb-4">📈 Estatísticas Gerais</h3>
             <div id="consultants-stats" class="space-y-3">
               <!-- Populated via JS -->
             </div>
@@ -710,6 +717,11 @@
 
         const totalMeetings = meetings.length;
 
+        const contactsToday = contacts.filter(c => {
+          const contactDate = dayjs(c.data_criacao).format('YYYY-MM-DD');
+          return contactDate === today;
+        }).length;
+
         const confirmedToday = meetings.filter(m => {
           const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
           return meetingDate === today && (m.status === 'confirmed' || m.status === 'completed');
@@ -720,11 +732,18 @@
           return meetingDate === today && m.status === 'noshow';
         }).length;
 
+        const scheduledToday = meetings.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today;
+        }).length;
+
         return {
           totalContacts,
           totalMeetings,
+          contactsToday,
           confirmedToday,
           noshowsToday,
+          scheduledToday,
         };
       };
 
@@ -776,7 +795,8 @@
       // ========================================
 
       const renderKPICards = (current, previous) => {
-        const kpis = [
+        // KPIs do Período
+        const periodKpis = [
           {
             label: 'Total de Contactos',
             value: current.totalContacts,
@@ -789,32 +809,15 @@
             prev: previous.totalMeetings,
             icon: '📅',
           },
-          {
-            label: 'Reuniões Confirmadas Hoje',
-            value: current.confirmedToday,
-            prev: previous.confirmedToday,
-            icon: '✅',
-          },
-          {
-            label: 'No-shows Hoje',
-            value: current.noshowsToday,
-            prev: previous.noshowsToday,
-            icon: '❌',
-            invertDelta: true,
-          },
         ];
 
-        const html = kpis
+        const periodHtml = periodKpis
           .map((kpi) => {
             const delta = fmtDelta(kpi.value, kpi.prev);
             const deltaClass =
               delta == null
                 ? 'delta-neutral'
                 : delta > 0
-                ? kpi.invertDelta
-                  ? 'delta-negative'
-                  : 'delta-positive'
-                : kpi.invertDelta
                 ? 'delta-positive'
                 : 'delta-negative';
             const deltaIcon = delta == null ? '' : delta > 0 ? '↑' : '↓';
@@ -826,14 +829,51 @@
             return `
             <div class="card rounded-lg p-4">
               <div class="text-sm text-gray-400 mb-1">${kpi.icon} ${kpi.label}</div>
-              <div class="text-2xl font-bold mb-1">${fmtNumber(kpi.value)}</div>
+              <div class="text-3xl font-bold mb-1">${fmtNumber(kpi.value)}</div>
               <div class="text-xs ${deltaClass}">${deltaText}</div>
             </div>
           `;
           })
           .join('');
 
-        document.getElementById('kpi-cards').innerHTML = html;
+        document.getElementById('kpi-cards-period').innerHTML = periodHtml;
+
+        // KPIs de Hoje
+        const todayKpis = [
+          {
+            label: 'Contactos',
+            value: current.contactsToday,
+            icon: '👥',
+          },
+          {
+            label: 'Reuniões',
+            value: current.scheduledToday,
+            icon: '📅',
+          },
+          {
+            label: 'Confirmadas',
+            value: current.confirmedToday,
+            icon: '✅',
+          },
+          {
+            label: 'No-shows',
+            value: current.noshowsToday,
+            icon: '❌',
+          },
+        ];
+
+        const todayHtml = todayKpis
+          .map((kpi) => {
+            return `
+            <div class="text-center p-2">
+              <div class="text-xs text-gray-400 mb-1">${kpi.icon} ${kpi.label}</div>
+              <div class="text-2xl font-bold">${fmtNumber(kpi.value)}</div>
+            </div>
+          `;
+          })
+          .join('');
+
+        document.getElementById('kpi-cards-today').innerHTML = todayHtml;
       };
 
       const renderInsights = (insights) => {
@@ -1039,20 +1079,21 @@
 
         const top3 = sorted.slice(0, 3);
         const medals = ['🥇', '🥈', '🥉'];
-        const heights = ['180px', '220px', '160px']; // 2nd, 1st, 3rd
+        const heights = ['220px', '180px', '160px']; // 1st, 2nd, 3rd - FIX: ordem correta
         const order = [1, 0, 2]; // Display order: 2nd, 1st, 3rd
 
-        const html = order.map(idx => {
-          if (!top3[idx]) return '';
-          const c = top3[idx];
-          const height = heights[idx];
+        const html = order.map(displayIdx => {
+          const actualIdx = displayIdx === 1 ? 0 : displayIdx === 0 ? 1 : 2; // 2nd position shows 1st place
+          if (!top3[actualIdx]) return '';
+          const c = top3[actualIdx];
+          const height = heights[actualIdx];
           return `
             <div class="text-center" style="width: 150px;">
-              <div class="medal mb-2">${medals[idx]}</div>
+              <div class="medal mb-2">${medals[actualIdx]}</div>
               <div class="font-bold text-lg mb-1">${c.name}</div>
               <div class="text-3xl font-bold text-blue-500 mb-2">${c.total}</div>
               <div class="bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg flex items-end justify-center" style="height: ${height};">
-                <div class="text-white text-sm pb-3 font-semibold">#${idx + 1}</div>
+                <div class="text-white text-sm pb-3 font-semibold">#${actualIdx + 1}</div>
               </div>
             </div>
           `;
@@ -1141,11 +1182,11 @@
 
         const html = `
           <div class="flex justify-between">
-            <span>Consultores Ativos</span>
+            <span>Comerciais Ativos</span>
             <span class="font-bold">${total}</span>
           </div>
           <div class="flex justify-between">
-            <span>Média por Consultor</span>
+            <span>Média por Pessoa</span>
             <span class="font-bold">${avgPerConsultant.toFixed(1)}</span>
           </div>
           <div class="flex justify-between">
@@ -1198,6 +1239,8 @@
               center: 'title',
               right: 'dayGridMonth,timeGridWeek,timeGridDay',
             },
+            slotMinTime: '06:00:00',
+            slotMaxTime: '22:00:00',
             events: events,
             eventClick: function(info) {
               const meetingId = info.event.extendedProps.meetingId;
@@ -1264,7 +1307,7 @@
 
             ${meeting.created_by ? `
             <div class="info-row">
-              <div class="info-label">Consultor</div>
+              <div class="info-label">Comercial</div>
               <div class="info-value">${meeting.created_by}</div>
             </div>
             ` : ''}
@@ -1330,7 +1373,10 @@
           if (period === 'day') {
             key = date.format('DD/MM');
           } else if (period === 'week') {
-            key = `Sem ${date.week()}`;
+            // Get week start and end
+            const weekStart = date.startOf('week');
+            const weekEnd = date.endOf('week');
+            key = `${weekStart.format('DD/MM')} - ${weekEnd.format('DD/MM')}`;
           } else if (period === 'month') {
             key = date.format('MMM/YY');
           }
@@ -1410,6 +1456,42 @@
           state.loading = false;
           document.getElementById('btn-refresh').disabled = false;
         }
+      };
+
+      // ========================================
+      // DATE RANGE SHORTCUTS
+      // ========================================
+
+      const setDateRange = (range) => {
+        const today = dayjs();
+        let from, to;
+
+        switch(range) {
+          case 'today':
+            from = today;
+            to = today;
+            break;
+          case 'week':
+            from = today.subtract(7, 'day');
+            to = today;
+            break;
+          case 'month':
+            from = today.subtract(30, 'day');
+            to = today;
+            break;
+          case '3months':
+            from = today.subtract(90, 'day');
+            to = today;
+            break;
+          default:
+            return;
+        }
+
+        state.dateFrom = from.format('YYYY-MM-DD');
+        state.dateTo = to.format('YYYY-MM-DD');
+        document.getElementById('filter-date-from').value = state.dateFrom;
+        document.getElementById('filter-date-to').value = state.dateTo;
+        fetchAllData();
       };
 
       // ========================================
