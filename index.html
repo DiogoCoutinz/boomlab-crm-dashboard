@@ -982,6 +982,10 @@
           byOrigin[origin] = (byOrigin[origin] || 0) + 1;
         });
 
+        // Separa Unknown dos outros
+        const unknownCount = byOrigin['Unknown'] || 0;
+        delete byOrigin['Unknown'];
+
         // Ordena por quantidade (maior primeiro)
         const sorted = Object.entries(byOrigin)
           .sort((a, b) => b[1] - a[1]);
@@ -989,6 +993,7 @@
         const labels = sorted.map(([origin]) => origin);
         const data = sorted.map(([, count]) => count);
         const total = contacts.length;
+        const unknownPercentage = ((unknownCount / total) * 100).toFixed(1);
 
         // Cores distintas para cada origem
         const colors = [
@@ -1024,12 +1029,12 @@
               legend: {
                 position: 'right',
                 labels: {
-                  color: '#e5e5e5',
+                  color: '#ffffff',
                   padding: 15,
                   font: { size: 12 },
                   generateLabels: function(chart) {
                     const data = chart.data;
-                    return data.labels.map((label, i) => {
+                    const labels = data.labels.map((label, i) => {
                       const value = data.datasets[0].data[i];
                       const percentage = ((value / total) * 100).toFixed(1);
                       return {
@@ -1039,13 +1044,26 @@
                         index: i
                       };
                     });
+                    
+                    // Adiciona Unknown no final se existir
+                    if (unknownCount > 0) {
+                      labels.push({
+                        text: `Unknown (${unknownPercentage}%)`,
+                        fillStyle: '#6b7280',
+                        hidden: false,
+                        lineWidth: 0,
+                        strokeStyle: 'transparent'
+                      });
+                    }
+                    
+                    return labels;
                   }
                 },
               },
               tooltip: {
                 backgroundColor: '#1a1a1a',
-                titleColor: '#e5e5e5',
-                bodyColor: '#9ca3af',
+                titleColor: '#ffffff',
+                bodyColor: '#e5e5e5',
                 borderColor: '#3a3a3a',
                 borderWidth: 1,
                 callbacks: {
