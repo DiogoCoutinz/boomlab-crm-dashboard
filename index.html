@@ -1029,9 +1029,10 @@
               legend: {
                 position: 'right',
                 labels: {
-                  color: '#ffffff',
+                  color: '#fff',
                   padding: 15,
-                  font: { size: 12 },
+                  font: { size: 12, weight: '500' },
+                  usePointStyle: true,
                   generateLabels: function(chart) {
                     const data = chart.data;
                     const labels = data.labels.map((label, i) => {
@@ -1040,6 +1041,8 @@
                       return {
                         text: `${label} (${percentage}%)`,
                         fillStyle: data.datasets[0].backgroundColor[i],
+                        strokeStyle: data.datasets[0].backgroundColor[i],
+                        fontColor: '#fff',
                         hidden: false,
                         index: i
                       };
@@ -1050,9 +1053,10 @@
                       labels.push({
                         text: `Unknown (${unknownPercentage}%)`,
                         fillStyle: '#6b7280',
+                        strokeStyle: '#6b7280',
+                        fontColor: '#fff',
                         hidden: false,
-                        lineWidth: 0,
-                        strokeStyle: 'transparent'
+                        pointStyle: 'rect'
                       });
                     }
                     
@@ -1062,7 +1066,7 @@
               },
               tooltip: {
                 backgroundColor: '#1a1a1a',
-                titleColor: '#ffffff',
+                titleColor: '#fff',
                 bodyColor: '#e5e5e5',
                 borderColor: '#3a3a3a',
                 borderWidth: 1,
