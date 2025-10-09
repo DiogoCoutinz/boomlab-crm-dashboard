@@ -451,7 +451,9 @@
       
       <!-- TAB: CONTACTOS -->
       <div id="tab-contactos" class="tab-content active">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           
           <!-- Chart: Novos Contactos -->
           <div class="card rounded-lg p-6">
@@ -461,35 +463,45 @@
             </div>
           </div>
 
-          <!-- Search + Table -->
+          <!-- Chart: Origem dos Contactos -->
           <div class="card rounded-lg p-6">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-semibold">Lista de Contactos</h3>
-              <input
-                type="text"
-                id="search-contacts"
-                placeholder="🔍 Procurar..."
-                class="w-64 text-sm"
-              />
-            </div>
-            <div class="overflow-x-auto max-h-96 overflow-y-auto">
-              <table id="table-contacts">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Email</th>
-                    <th>País</th>
-                    <th>Origem</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- Populated via JS -->
-                </tbody>
-              </table>
+            <h3 class="text-lg font-semibold mb-4">Origem dos Contactos</h3>
+            <div class="chart-container">
+              <canvas id="chart-contacts-origin"></canvas>
             </div>
           </div>
+
         </div>
+
+        <!-- Search + Table -->
+        <div class="card rounded-lg p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Lista de Contactos</h3>
+            <input
+              type="text"
+              id="search-contacts"
+              placeholder="🔍 Procurar..."
+              class="w-64 text-sm"
+            />
+          </div>
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table id="table-contacts">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Email</th>
+                  <th>País</th>
+                  <th>Origem</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       <!-- TAB: REUNIÕES -->
@@ -902,20 +914,30 @@
         if (charts.contacts) charts.contacts.destroy();
 
         // Group by day, week, or month
-        const grouped = groupByPeriod(contacts, 'data_criacao', state.chartView);
+        const { grouped, sortKeys } = groupByPeriod(contacts, 'data_criacao', state.chartView);
 
-        const labels = Object.keys(grouped).sort();
+        // Ordenar labels cronologicamente (mais antigo à esquerda)
+        const labels = Object.keys(grouped).sort((a, b) => {
+          return sortKeys[a].localeCompare(sortKeys[b]);
+        });
         const data = labels.map((label) => grouped[label].length);
 
         charts.contacts = new Chart(ctx, {
-          type: 'bar',
+          type: 'line',
           data: {
             labels,
             datasets: [
               {
                 label: 'Novos Contactos',
                 data,
-                backgroundColor: CONFIG.colors.success,
+                borderColor: CONFIG.colors.success,
+                backgroundColor: CONFIG.colors.success + '20',
+                fill: true,
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: CONFIG.colors.success,
               },
             ],
           },
@@ -933,8 +955,108 @@
               },
             },
             scales: {
-              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+              x: { 
+                ticks: { 
+                  color: '#9ca3af',
+                  maxRotation: 45,
+                  minRotation: 45
+                }, 
+                grid: { color: '#2a2a2a' } 
+              },
               y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+            },
+          },
+        });
+      };
+
+      const renderContactsOriginChart = (contacts) => {
+        const ctx = document.getElementById('chart-contacts-origin');
+        if (!ctx) return;
+
+        if (charts.contactsOrigin) charts.contactsOrigin.destroy();
+
+        // Agrupa por origem
+        const byOrigin = {};
+        contacts.forEach(c => {
+          const origin = c.origem || 'Unknown';
+          byOrigin[origin] = (byOrigin[origin] || 0) + 1;
+        });
+
+        // Ordena por quantidade (maior primeiro)
+        const sorted = Object.entries(byOrigin)
+          .sort((a, b) => b[1] - a[1]);
+
+        const labels = sorted.map(([origin]) => origin);
+        const data = sorted.map(([, count]) => count);
+        const total = contacts.length;
+
+        // Cores distintas para cada origem
+        const colors = [
+          '#3b82f6', // azul
+          '#10b981', // verde
+          '#f59e0b', // laranja
+          '#ef4444', // vermelho
+          '#8b5cf6', // roxo
+          '#ec4899', // rosa
+          '#14b8a6', // teal
+          '#f97316', // orange
+          '#6366f1', // indigo
+          '#84cc16', // lime
+        ];
+
+        charts.contactsOrigin = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [
+              {
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1a1a1a',
+                borderWidth: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  color: '#e5e5e5',
+                  padding: 15,
+                  font: { size: 12 },
+                  generateLabels: function(chart) {
+                    const data = chart.data;
+                    return data.labels.map((label, i) => {
+                      const value = data.datasets[0].data[i];
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return {
+                        text: `${label} (${percentage}%)`,
+                        fillStyle: data.datasets[0].backgroundColor[i],
+                        hidden: false,
+                        index: i
+                      };
+                    });
+                  }
+                },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed;
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${label}: ${value} (${percentage}%)`;
+                  }
+                }
+              },
             },
           },
         });
@@ -947,9 +1069,12 @@
         if (charts.meetings) charts.meetings.destroy();
 
         // Group by day, week, or month
-        const grouped = groupByPeriod(meetings, 'date_created', state.chartView);
+        const { grouped, sortKeys } = groupByPeriod(meetings, 'date_created', state.chartView);
 
-        const labels = Object.keys(grouped).sort();
+        // Ordenar labels cronologicamente (mais antigo à esquerda)
+        const labels = Object.keys(grouped).sort((a, b) => {
+          return sortKeys[a].localeCompare(sortKeys[b]);
+        });
         const data = labels.map((label) => grouped[label].length);
 
         charts.meetings = new Chart(ctx, {
@@ -983,7 +1108,14 @@
               },
             },
             scales: {
-              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+              x: { 
+                ticks: { 
+                  color: '#9ca3af',
+                  maxRotation: 45,
+                  minRotation: 45
+                }, 
+                grid: { color: '#2a2a2a' } 
+              },
               y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
             },
           },
@@ -1365,27 +1497,34 @@
 
       const groupByPeriod = (items, dateField, period) => {
         const grouped = {};
+        const sortKeys = {}; // Para ordenar cronologicamente
 
         items.forEach(item => {
           const date = dayjs(item[dateField]);
-          let key;
+          let key, sortKey;
 
           if (period === 'day') {
             key = date.format('DD/MM');
+            sortKey = date.format('YYYY-MM-DD');
           } else if (period === 'week') {
-            // Get week start and end
             const weekStart = date.startOf('week');
             const weekEnd = date.endOf('week');
             key = `${weekStart.format('DD/MM')} - ${weekEnd.format('DD/MM')}`;
+            sortKey = weekStart.format('YYYY-MM-DD');
           } else if (period === 'month') {
             key = date.format('MMM/YY');
+            sortKey = date.format('YYYY-MM');
           }
 
-          if (!grouped[key]) grouped[key] = [];
+          if (!grouped[key]) {
+            grouped[key] = [];
+            sortKeys[key] = sortKey;
+          }
           grouped[key].push(item);
         });
 
-        return grouped;
+        // Retorna objeto com dados ordenados cronologicamente
+        return { grouped, sortKeys };
       };
 
       // ========================================
@@ -1439,6 +1578,7 @@
           renderKPICards(currentKPIs, previousKPIs);
           renderInsights(computeInsights(currentKPIs, previousKPIs, meetings, previousData.meetings));
           renderContactsChart(contacts);
+          renderContactsOriginChart(contacts);
           renderContactsTable(contacts);
           renderMeetingsChart(meetings);
           renderMeetingsStats(meetings);
@@ -1545,6 +1685,7 @@
         document.getElementById('chart-view').addEventListener('change', (e) => {
           state.chartView = e.target.value;
           renderContactsChart(state.contacts);
+          renderContactsOriginChart(state.contacts);
           renderMeetingsChart(state.meetings);
         });
 
