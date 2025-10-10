@@ -401,12 +401,12 @@
 
     <!-- KPI Cards -->
     <section class="container mx-auto px-6 py-8">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
         <!-- KPIs do Período -->
-        <div class="lg:col-span-2">
+        <div class="lg:col-span-3">
           <h3 class="text-sm text-gray-400 mb-3 font-semibold">📊 Total no Período</h3>
-          <div id="kpi-cards-period" class="grid grid-cols-2 gap-4">
+          <div id="kpi-cards-period" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Populated via JS -->
           </div>
         </div>
@@ -415,7 +415,7 @@
         <div>
           <h3 class="text-sm text-gray-400 mb-3 font-semibold">📅 Hoje</h3>
           <div class="card rounded-lg p-5 border-2 border-blue-900 bg-gradient-to-br from-blue-950/30 to-transparent">
-            <div id="kpi-cards-today" class="grid grid-cols-2 gap-4">
+            <div id="kpi-cards-today" class="grid grid-cols-2 gap-3">
               <!-- Populated via JS -->
             </div>
           </div>
@@ -442,6 +442,9 @@
         </button>
         <button class="tab-btn" data-tab="consultores">
           💼 Departamento Comercial
+        </button>
+        <button class="tab-btn" data-tab="formularios">
+          📝 Formulários
         </button>
       </div>
     </section>
@@ -571,6 +574,95 @@
         </div>
       </div>
 
+      <!-- TAB: FORMULÁRIOS -->
+      <div id="tab-formularios" class="tab-content">
+        
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          
+          <!-- Chart: Formulários Preenchidos -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Formulários Preenchidos</h3>
+            <div class="chart-container">
+              <canvas id="chart-forms"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart: Origem (contact_source) -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Origem dos Formulários</h3>
+            <div class="chart-container">
+              <canvas id="chart-forms-source"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart: Faturação Anual -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Faturação Anual</h3>
+            <div class="chart-container">
+              <canvas id="chart-forms-faturacao"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart: Interesse Mentoria -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Interesse Mentoria</h3>
+            <div class="chart-container">
+              <canvas id="chart-forms-interesse"></canvas>
+            </div>
+          </div>
+
+          <!-- Stats: UTM Source -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">📊 UTM Source</h3>
+            <div id="forms-utm-source" class="space-y-2">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Stats: Cargo -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">💼 Cargo</h3>
+            <div id="forms-cargo" class="space-y-2">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Search + Table -->
+        <div class="card rounded-lg p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Lista de Formulários</h3>
+            <input
+              type="text"
+              id="search-forms"
+              placeholder="🔍 Procurar..."
+              class="w-64 text-sm"
+            />
+          </div>
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table id="table-forms">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Email</th>
+                  <th>País</th>
+                  <th>Faturação</th>
+                  <th>Cargo</th>
+                  <th>Origem</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
     </section>
 
     <!-- Modal -->
@@ -634,6 +726,7 @@
       const state = {
         contacts: [],
         meetings: [],
+        forms: [],
         dateFrom: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
         dateTo: dayjs().format('YYYY-MM-DD'),
         chartView: 'week',
@@ -695,6 +788,18 @@
         return data || [];
       };
 
+      const fetchForms = async (from, to) => {
+        const { data, error } = await supabase
+          .from('forms')
+          .select('*')
+          .gte('date_created', from)
+          .lte('date_created', to + 'T23:59:59')
+          .order('date_created', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+      };
+
       const fetchAllMeetings = async () => {
         // Fetch all meetings for calendar (next 3 months)
         const from = dayjs().subtract(1, 'month').format('YYYY-MM-DD');
@@ -718,24 +823,25 @@
         const prevTo = fromDate.subtract(1, 'day').format('YYYY-MM-DD');
         const prevFrom = fromDate.subtract(duration, 'day').format('YYYY-MM-DD');
 
-        const [contacts, meetings] = await Promise.all([
+        const [contacts, meetings, forms] = await Promise.all([
           fetchContacts(prevFrom, prevTo),
           fetchMeetings(prevFrom, prevTo),
+          fetchForms(prevFrom, prevTo),
         ]);
 
-        return { contacts, meetings };
+        return { contacts, meetings, forms };
       };
 
       // ========================================
       // COMPUTE KPIs
       // ========================================
 
-      const computeKPIs = (contacts, meetings) => {
+      const computeKPIs = (contacts, meetings, forms = []) => {
         const today = dayjs().tz(CONFIG.timezone).format('YYYY-MM-DD');
 
         const totalContacts = contacts.length;
-
         const totalMeetings = meetings.length;
+        const totalForms = forms.length;
 
         const contactsToday = contacts.filter(c => {
           const contactDate = dayjs(c.data_criacao).format('YYYY-MM-DD');
@@ -757,13 +863,20 @@
           return meetingDate === today;
         }).length;
 
+        const formsToday = forms.filter(f => {
+          const formDate = dayjs(f.date_created).format('YYYY-MM-DD');
+          return formDate === today;
+        }).length;
+
         return {
           totalContacts,
           totalMeetings,
+          totalForms,
           contactsToday,
           confirmedToday,
           noshowsToday,
           scheduledToday,
+          formsToday,
         };
       };
 
@@ -829,6 +942,12 @@
             prev: previous.totalMeetings,
             icon: '📅',
           },
+          {
+            label: 'Formulários Preenchidos',
+            value: current.totalForms,
+            prev: previous.totalForms,
+            icon: '📝',
+          },
         ];
 
         const periodHtml = periodKpis
@@ -866,6 +985,11 @@
             icon: '👥',
           },
           {
+            label: 'Formulários',
+            value: current.formsToday,
+            icon: '📝',
+          },
+          {
             label: 'Reuniões',
             value: current.scheduledToday,
             icon: '📅',
@@ -885,9 +1009,10 @@
         const todayHtml = todayKpis
           .map((kpi) => {
             return `
-            <div class="text-center p-2">
-              <div class="text-xs text-gray-400 mb-1">${kpi.icon} ${kpi.label}</div>
-              <div class="text-2xl font-bold">${fmtNumber(kpi.value)}</div>
+            <div class="text-center p-1">
+              <div class="text-xs text-gray-400 mb-1">${kpi.icon}</div>
+              <div class="text-xl font-bold">${fmtNumber(kpi.value)}</div>
+              <div class="text-[10px] text-gray-500">${kpi.label}</div>
             </div>
           `;
           })
@@ -1408,6 +1533,331 @@
         document.getElementById('owners-ranking').innerHTML = html || '<div class="text-center text-gray-500 py-4">Sem dados disponíveis</div>';
       };
 
+      const renderFormsChart = (forms) => {
+        const ctx = document.getElementById('chart-forms');
+        if (!ctx) return;
+
+        if (charts.forms) charts.forms.destroy();
+
+        const { grouped, sortKeys } = groupByPeriod(forms, 'date_created', state.chartView);
+        const labels = Object.keys(grouped).sort((a, b) => sortKeys[a].localeCompare(sortKeys[b]));
+        const data = labels.map((label) => grouped[label].length);
+
+        charts.forms = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Formulários Preenchidos',
+                data,
+                borderColor: '#8b5cf6',
+                backgroundColor: '#8b5cf620',
+                fill: true,
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#8b5cf6',
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: { 
+                ticks: { 
+                  color: '#9ca3af',
+                  maxRotation: 45,
+                  minRotation: 45
+                }, 
+                grid: { color: '#2a2a2a' } 
+              },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+            },
+          },
+        });
+      };
+
+      const renderFormsSourceChart = (forms) => {
+        const ctx = document.getElementById('chart-forms-source');
+        if (!ctx) return;
+
+        if (charts.formsSource) charts.formsSource.destroy();
+
+        const bySource = {};
+        forms.forEach(f => {
+          const source = f.contact_source || 'Unknown';
+          bySource[source] = (bySource[source] || 0) + 1;
+        });
+
+        const sorted = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(([source]) => source);
+        const data = sorted.map(([, count]) => count);
+        const total = forms.length;
+
+        const colors = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+
+        charts.formsSource = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [
+              {
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1a1a1a',
+                borderWidth: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  color: '#fff',
+                  padding: 15,
+                  font: { size: 12, weight: '500' },
+                  usePointStyle: true,
+                  generateLabels: function(chart) {
+                    const data = chart.data;
+                    return data.labels.map((label, i) => {
+                      const value = data.datasets[0].data[i];
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return {
+                        text: `${label} (${percentage}%)`,
+                        fillStyle: data.datasets[0].backgroundColor[i],
+                        strokeStyle: data.datasets[0].backgroundColor[i],
+                        fontColor: '#fff',
+                        hidden: false,
+                        index: i
+                      };
+                    });
+                  }
+                },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#fff',
+                bodyColor: '#e5e5e5',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed;
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${label}: ${value} (${percentage}%)`;
+                  }
+                }
+              },
+            },
+          },
+        });
+      };
+
+      const renderFormsFaturacaoChart = (forms) => {
+        const ctx = document.getElementById('chart-forms-faturacao');
+        if (!ctx) return;
+
+        if (charts.formsFaturacao) charts.formsFaturacao.destroy();
+
+        const byFaturacao = {};
+        forms.forEach(f => {
+          const fat = f.faturacao_anual || 'Não especificado';
+          byFaturacao[fat] = (byFaturacao[fat] || 0) + 1;
+        });
+
+        const sorted = Object.entries(byFaturacao).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(([fat]) => fat);
+        const data = sorted.map(([, count]) => count);
+
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+        charts.formsFaturacao = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Faturação Anual',
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1a1a1a',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+            },
+          },
+        });
+      };
+
+      const renderFormsInteresseChart = (forms) => {
+        const ctx = document.getElementById('chart-forms-interesse');
+        if (!ctx) return;
+
+        if (charts.formsInteresse) charts.formsInteresse.destroy();
+
+        const byInteresse = {};
+        forms.forEach(f => {
+          const interesse = f.interesse_mentoria || 'Não especificado';
+          byInteresse[interesse] = (byInteresse[interesse] || 0) + 1;
+        });
+
+        const sorted = Object.entries(byInteresse).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(([int]) => int);
+        const data = sorted.map(([, count]) => count);
+
+        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+        charts.formsInteresse = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Interesse Mentoria',
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1a1a1a',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
+            },
+          },
+        });
+      };
+
+      const renderFormsUtmSource = (forms) => {
+        const byUtm = {};
+        forms.forEach(f => {
+          const utm = f.utm_source || 'Não especificado';
+          byUtm[utm] = (byUtm[utm] || 0) + 1;
+        });
+
+        const sorted = Object.entries(byUtm).sort((a, b) => b[1] - a[1]);
+        const html = sorted.map(([utm, count]) => {
+          return `
+            <div class="flex justify-between py-2 border-b border-gray-800">
+              <span class="text-gray-300">${utm}</span>
+              <span class="font-bold text-purple-400">${count}</span>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('forms-utm-source').innerHTML = html || '<div class="text-center text-gray-500">Sem dados</div>';
+      };
+
+      const renderFormsCargo = (forms) => {
+        const byCargo = {};
+        forms.forEach(f => {
+          const cargo = f.cargo || 'Não especificado';
+          byCargo[cargo] = (byCargo[cargo] || 0) + 1;
+        });
+
+        const sorted = Object.entries(byCargo).sort((a, b) => b[1] - a[1]);
+        const html = sorted.map(([cargo, count]) => {
+          return `
+            <div class="flex justify-between py-2 border-b border-gray-800">
+              <span class="text-gray-300">${cargo}</span>
+              <span class="font-bold text-blue-400">${count}</span>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('forms-cargo').innerHTML = html || '<div class="text-center text-gray-500">Sem dados</div>';
+      };
+
+      const renderFormsTable = (forms) => {
+        const tbody = document.querySelector('#table-forms tbody');
+        if (!tbody) return;
+
+        const html = forms
+          .slice(0, 100)
+          .map((form) => {
+            return `
+            <tr>
+              <td>${form.full_name || '—'}</td>
+              <td class="text-sm font-mono">${form.email || '—'}</td>
+              <td>${form.country || '—'}</td>
+              <td>${form.faturacao_anual || '—'}</td>
+              <td>${form.cargo || '—'}</td>
+              <td class="text-sm">${form.contact_source || '—'}</td>
+              <td class="text-sm">${fmtDate(form.date_created)}</td>
+            </tr>
+          `;
+          })
+          .join('');
+
+        tbody.innerHTML = html || '<tr><td colspan="7" class="text-center text-gray-500">Sem formulários</td></tr>';
+      };
+
+      const setupFormsSearch = () => {
+        const searchInput = document.getElementById('search-forms');
+        if (!searchInput) return;
+        
+        searchInput.addEventListener('input', (e) => {
+          const query = e.target.value.toLowerCase();
+          const filtered = state.forms.filter(f => {
+            const name = (f.full_name || '').toLowerCase();
+            const email = (f.email || '').toLowerCase();
+            const cargo = (f.cargo || '').toLowerCase();
+            const source = (f.contact_source || '').toLowerCase();
+            return name.includes(query) || email.includes(query) || cargo.includes(query) || source.includes(query);
+          });
+          renderFormsTable(filtered);
+        });
+      };
+
       const renderCalendar = (allMeetings) => {
         const calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
@@ -1639,20 +2089,22 @@
           const from = state.dateFrom;
           const to = state.dateTo;
 
-          const [contacts, meetings, allMeetings, previousData] = await Promise.all([
+          const [contacts, meetings, forms, allMeetings, previousData] = await Promise.all([
             fetchContacts(from, to),
             fetchMeetings(from, to),
+            fetchForms(from, to),
             fetchAllMeetings(),
             fetchPreviousPeriodData(from, to),
           ]);
 
           state.contacts = contacts;
           state.meetings = meetings;
+          state.forms = forms;
           state.previousPeriodData = previousData;
 
           // Compute KPIs
-          const currentKPIs = computeKPIs(contacts, meetings);
-          const previousKPIs = computeKPIs(previousData.contacts, previousData.meetings);
+          const currentKPIs = computeKPIs(contacts, meetings, forms);
+          const previousKPIs = computeKPIs(previousData.contacts, previousData.meetings, previousData.forms);
 
           // Render
           renderKPICards(currentKPIs, previousKPIs);
@@ -1667,6 +2119,13 @@
           renderConsultantsRanking(meetings);
           renderConsultantsStats(meetings);
           renderOwnersRanking(meetings);
+          renderFormsChart(forms);
+          renderFormsSourceChart(forms);
+          renderFormsFaturacaoChart(forms);
+          renderFormsInteresseChart(forms);
+          renderFormsUtmSource(forms);
+          renderFormsCargo(forms);
+          renderFormsTable(forms);
 
           // Update timestamp
           document.getElementById('last-update').textContent = dayjs().tz(CONFIG.timezone).format('HH:mm');
@@ -1768,6 +2227,7 @@
           renderContactsChart(state.contacts);
           renderContactsOriginChart(state.contacts);
           renderMeetingsChart(state.meetings);
+          renderFormsChart(state.forms);
         });
 
         document.getElementById('btn-refresh').addEventListener('click', () => {
@@ -1776,6 +2236,7 @@
 
         setupTabs();
         setupSearch();
+        setupFormsSearch();
 
         // Initial fetch
         await fetchAllData();
