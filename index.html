@@ -837,46 +837,41 @@
       // ========================================
 
       const computeKPIs = (contacts, meetings, forms = []) => {
-        const today = dayjs().tz(CONFIG.timezone).format('YYYY-MM-DD');
-
         const totalContacts = contacts.length;
         const totalMeetings = meetings.length;
         const totalForms = forms.length;
-
-        const contactsToday = contacts.filter(c => {
-          const contactDate = dayjs(c.data_criacao).format('YYYY-MM-DD');
-          return contactDate === today;
-        }).length;
-
-        const confirmedToday = meetings.filter(m => {
-          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
-          return meetingDate === today && (m.status === 'confirmed' || m.status === 'completed');
-        }).length;
-
-        const noshowsToday = meetings.filter(m => {
-          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
-          return meetingDate === today && m.status === 'noshow';
-        }).length;
-
-        const scheduledToday = meetings.filter(m => {
-          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
-          return meetingDate === today;
-        }).length;
-
-        const formsToday = forms.filter(f => {
-          const formDate = dayjs(f.date_created).format('YYYY-MM-DD');
-          return formDate === today;
-        }).length;
 
         return {
           totalContacts,
           totalMeetings,
           totalForms,
-          contactsToday,
+        };
+      };
+
+      const computeTodayKPIs = (contactsToday, meetingsToday, formsToday) => {
+        const today = dayjs().tz(CONFIG.timezone).format('YYYY-MM-DD');
+
+        const confirmedToday = meetingsToday.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today && (m.status === 'confirmed' || m.status === 'completed');
+        }).length;
+
+        const noshowsToday = meetingsToday.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today && m.status === 'noshow';
+        }).length;
+
+        const scheduledToday = meetingsToday.filter(m => {
+          const meetingDate = dayjs(m.start_time).format('YYYY-MM-DD');
+          return meetingDate === today;
+        }).length;
+
+        return {
+          contactsToday: contactsToday.length,
           confirmedToday,
           noshowsToday,
           scheduledToday,
-          formsToday,
+          formsToday: formsToday.length,
         };
       };
 
@@ -927,7 +922,7 @@
       // RENDER
       // ========================================
 
-      const renderKPICards = (current, previous) => {
+      const renderKPICards = (current, previous, todayKPIs) => {
         // KPIs do Período
         const periodKpis = [
           {
@@ -981,22 +976,22 @@
         const todayKpis = [
           {
             label: 'Contactos',
-            value: current.contactsToday,
+            value: todayKPIs.contactsToday,
             icon: '👥',
           },
           {
             label: 'Formulários',
-            value: current.formsToday,
+            value: todayKPIs.formsToday,
             icon: '📝',
           },
           {
             label: 'Reuniões',
-            value: current.scheduledToday,
+            value: todayKPIs.scheduledToday,
             icon: '📅',
           },
           {
             label: 'Confirmadas',
-            value: current.confirmedToday,
+            value: todayKPIs.confirmedToday,
             icon: '✅',
           },
         ];
@@ -2083,13 +2078,17 @@
         try {
           const from = state.dateFrom;
           const to = state.dateTo;
+          const today = dayjs().tz(CONFIG.timezone).format('YYYY-MM-DD');
 
-          const [contacts, meetings, forms, allMeetings, previousData] = await Promise.all([
+          const [contacts, meetings, forms, allMeetings, previousData, contactsToday, meetingsToday, formsToday] = await Promise.all([
             fetchContacts(from, to),
             fetchMeetings(from, to),
             fetchForms(from, to),
             fetchAllMeetings(),
             fetchPreviousPeriodData(from, to),
+            fetchContacts(today, today),
+            fetchMeetings(today, today),
+            fetchForms(today, today),
           ]);
 
           state.contacts = contacts;
@@ -2100,9 +2099,10 @@
           // Compute KPIs
           const currentKPIs = computeKPIs(contacts, meetings, forms);
           const previousKPIs = computeKPIs(previousData.contacts, previousData.meetings, previousData.forms);
+          const todayKPIs = computeTodayKPIs(contactsToday, meetingsToday, formsToday);
 
           // Render
-          renderKPICards(currentKPIs, previousKPIs);
+          renderKPICards(currentKPIs, previousKPIs, todayKPIs);
           renderInsights(computeInsights(currentKPIs, previousKPIs, meetings, previousData.meetings));
           renderContactsChart(contacts);
           renderContactsOriginChart(contacts);
