@@ -538,15 +538,15 @@
           
           <!-- Top 3 Podium -->
           <div class="card rounded-lg p-6 lg:col-span-3">
-            <h3 class="text-lg font-semibold mb-6">🏆 Top 3 Comerciais</h3>
+            <h3 class="text-lg font-semibold mb-6">🏆 Top 3 Comerciais (Reuniões Marcadas)</h3>
             <div id="top-consultants-podium" class="flex justify-center items-end gap-8">
               <!-- Populated via JS -->
             </div>
           </div>
 
-          <!-- Ranking Completo -->
+          <!-- Ranking Completo - Created By -->
           <div class="card rounded-lg p-6 lg:col-span-2">
-            <h3 class="text-lg font-semibold mb-4">📊 Ranking de Desempenho</h3>
+            <h3 class="text-lg font-semibold mb-4">📊 Ranking - Reuniões Marcadas</h3>
             <div id="consultants-ranking" class="space-y-3">
               <!-- Populated via JS -->
             </div>
@@ -556,6 +556,14 @@
           <div class="card rounded-lg p-6">
             <h3 class="text-lg font-semibold mb-4">📈 Estatísticas Gerais</h3>
             <div id="consultants-stats" class="space-y-3">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Ranking Completo - Owner -->
+          <div class="card rounded-lg p-6 lg:col-span-3">
+            <h3 class="text-lg font-semibold mb-4">👤 Ranking - Responsáveis pelas Reuniões</h3>
+            <div id="owners-ranking" class="space-y-3">
               <!-- Populated via JS -->
             </div>
           </div>
@@ -1357,6 +1365,49 @@
         document.getElementById('consultants-stats').innerHTML = html;
       };
 
+      const renderOwnersRanking = (meetings) => {
+        const byOwner = {};
+        meetings.forEach(m => {
+          const owner = m.owner || 'Unknown';
+          if (!byOwner[owner]) {
+            byOwner[owner] = { total: 0, confirmed: 0, noshows: 0 };
+          }
+          byOwner[owner].total++;
+          if (m.status === 'confirmed' || m.status === 'completed') byOwner[owner].confirmed++;
+          if (m.status === 'noshow') byOwner[owner].noshows++;
+        });
+
+        const sorted = Object.entries(byOwner)
+          .map(([name, stats]) => ({ name, ...stats }))
+          .sort((a, b) => b.total - a.total);
+
+        const maxTotal = sorted[0]?.total || 1;
+
+        const html = sorted.map((o, idx) => {
+          const noshowRate = o.total > 0 ? (o.noshows / o.total) * 100 : 0;
+          const barWidth = (o.total / maxTotal) * 100;
+          return `
+            <div class="rank-item p-3 rounded-lg border border-gray-800">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3">
+                  <div class="text-gray-500 font-bold w-8">#${idx + 1}</div>
+                  <div class="font-semibold">${o.name}</div>
+                </div>
+                <div class="text-2xl font-bold text-purple-500">${o.total}</div>
+              </div>
+              <div class="rank-bar" style="width: ${barWidth}%; background: linear-gradient(90deg, #a855f7 0%, #7c3aed 100%);"></div>
+              <div class="flex gap-4 mt-2 text-xs text-gray-400">
+                <span>✅ ${o.confirmed} confirmadas</span>
+                <span>❌ ${o.noshows} no-shows</span>
+                <span>📊 ${fmtPercent(noshowRate)} taxa no-show</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('owners-ranking').innerHTML = html || '<div class="text-center text-gray-500 py-4">Sem dados disponíveis</div>';
+      };
+
       const renderCalendar = (allMeetings) => {
         const calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
@@ -1461,8 +1512,15 @@
 
             ${meeting.created_by ? `
             <div class="info-row">
-              <div class="info-label">Comercial</div>
+              <div class="info-label">Criado por</div>
               <div class="info-value">${meeting.created_by}</div>
+            </div>
+            ` : ''}
+
+            ${meeting.owner ? `
+            <div class="info-row">
+              <div class="info-label">Responsável</div>
+              <div class="info-value">${meeting.owner}</div>
             </div>
             ` : ''}
 
@@ -1608,6 +1666,7 @@
           renderConsultantsPodium(meetings);
           renderConsultantsRanking(meetings);
           renderConsultantsStats(meetings);
+          renderOwnersRanking(meetings);
 
           // Update timestamp
           document.getElementById('last-update').textContent = dayjs().tz(CONFIG.timezone).format('HH:mm');
