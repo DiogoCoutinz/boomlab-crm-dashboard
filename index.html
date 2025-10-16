@@ -1907,6 +1907,21 @@
         const isSingleDay = range === 'hoje' || range === 'ontem';
         const chartType = isSingleDay ? 'bar' : 'line';
 
+        // Calcula o valor máximo entre todos os gráficos para usar a mesma escala
+        let globalMax = 0;
+        hostnames.forEach(({ name }) => {
+          const hostnameData = data.analyticsByHostname[name];
+          if (hostnameData) {
+            const byDate = hostnameData.byDate;
+            const values = Object.keys(byDate).map(date => byDate[date].sessions);
+            const max = Math.max(...values);
+            if (max > globalMax) globalMax = max;
+          }
+        });
+
+        // Adiciona uma margem de 10% ao máximo
+        const yMax = Math.ceil(globalMax * 1.1);
+
         hostnames.forEach(({ name, id, color }) => {
           const ctx = document.getElementById(id);
           if (!ctx) return;
@@ -1970,6 +1985,7 @@
                   ticks: { color: '#9ca3af', font: { size: 10 } },
                   grid: { color: '#2a2a2a' },
                   beginAtZero: true,
+                  max: yMax, // Usa a mesma escala em todos os gráficos
                 },
               },
             },
