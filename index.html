@@ -588,6 +588,7 @@
             <h3 class="text-lg font-semibold">📈 Analytics de Formulários</h3>
             <div class="flex gap-2">
               <button class="btn analytics-range-btn" data-range="hoje" style="background: #374151; padding: 0.5rem 0.75rem;">Hoje</button>
+              <button class="btn analytics-range-btn" data-range="ontem" style="background: #374151; padding: 0.5rem 0.75rem;">Ontem</button>
               <button class="btn analytics-range-btn active" data-range="7days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 7 dias</button>
               <button class="btn analytics-range-btn" data-range="30days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 30 dias</button>
               <button class="btn analytics-range-btn" data-range="alltime" style="background: #374151; padding: 0.5rem 0.75rem;">All Time</button>
@@ -813,12 +814,16 @@
       };
 
       const getAnalyticsDateRange = (range) => {
-        const to = dayjs().format('YYYY-MM-DD');
+        let to = dayjs().format('YYYY-MM-DD');
         let from;
         
         switch(range) {
           case 'hoje':
             from = dayjs().format('YYYY-MM-DD');
+            break;
+          case 'ontem':
+            from = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+            to = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
             break;
           case '7days':
             from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
@@ -1881,12 +1886,16 @@
       // ANALYTICS RENDER
       // ========================================
 
-      const renderAnalyticsViewsChart = (data) => {
+      const renderAnalyticsViewsChart = (data, range) => {
         const hostnames = [
           { name: 'mentoria.boomlab.agency', id: 'chart-analytics-mentoria', color: '#8b5cf6' },
           { name: 'vsl.boomlab.agency', id: 'chart-analytics-vsl', color: '#3b82f6' },
           { name: 'vsl2.boomlab.agency', id: 'chart-analytics-vsl2', color: '#10b981' }
         ];
+
+        // Usa bar chart para hoje/ontem (um único dia), line chart para períodos
+        const isSingleDay = range === 'hoje' || range === 'ontem';
+        const chartType = isSingleDay ? 'bar' : 'line';
 
         hostnames.forEach(({ name, id, color }) => {
           const ctx = document.getElementById(id);
@@ -1906,22 +1915,28 @@
           const labels = dates.map(d => dayjs(d).format('DD/MM'));
           const values = dates.map(date => byDate[date].sessions);
 
+          const datasetConfig = {
+            label: 'Sessions',
+            data: values,
+            borderColor: color,
+            backgroundColor: isSingleDay ? color : color + '20',
+            borderWidth: 2,
+          };
+
+          // Adiciona configurações específicas para line charts
+          if (!isSingleDay) {
+            datasetConfig.fill = true;
+            datasetConfig.tension = 0.4;
+            datasetConfig.pointRadius = 4;
+            datasetConfig.pointHoverRadius = 6;
+            datasetConfig.pointBackgroundColor = color;
+          }
+
           charts[id] = new Chart(ctx, {
-            type: 'line',
+            type: chartType,
             data: {
               labels,
-              datasets: [{
-                label: 'Sessions',
-                data: values,
-                borderColor: color,
-                backgroundColor: color + '20',
-                fill: true,
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                pointBackgroundColor: color,
-              }],
+              datasets: [datasetConfig],
             },
             options: {
               responsive: true,
@@ -2159,7 +2174,7 @@
           const data = await fetchAnalyticsForForms(state.analyticsDateRange);
           state.analyticsData = data;
 
-          renderAnalyticsViewsChart(data);
+          renderAnalyticsViewsChart(data, state.analyticsDateRange);
           renderAnalyticsKPIs(data);
           renderAnalyticsTrafficChart(data, state.analyticsTrafficView);
           renderAnalyticsConversions(data);
