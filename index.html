@@ -587,17 +587,35 @@
           <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-semibold">📈 Analytics de Formulários</h3>
             <div class="flex gap-2">
-              <button class="btn analytics-range-btn" data-range="ontem" style="background: #374151; padding: 0.5rem 0.75rem;">Ontem</button>
+              <button class="btn analytics-range-btn" data-range="hoje" style="background: #374151; padding: 0.5rem 0.75rem;">Hoje</button>
               <button class="btn analytics-range-btn active" data-range="7days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 7 dias</button>
               <button class="btn analytics-range-btn" data-range="30days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 30 dias</button>
+              <button class="btn analytics-range-btn" data-range="alltime" style="background: #374151; padding: 0.5rem 0.75rem;">All Time</button>
             </div>
           </div>
 
-          <!-- Gráfico Temporal de Visualizações -->
+          <!-- Gráficos Temporais de Visualizações -->
           <div class="mb-6">
             <h4 class="text-sm font-semibold mb-3 text-gray-300">📊 Visualizações ao Longo do Tempo (Sessions)</h4>
-            <div class="chart-container">
-              <canvas id="chart-analytics-views"></canvas>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div>
+                <div class="text-xs text-center mb-2" style="color: #8b5cf6; font-weight: 600;">mentoria</div>
+                <div class="chart-container" style="height: 200px;">
+                  <canvas id="chart-analytics-mentoria"></canvas>
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-center mb-2" style="color: #3b82f6; font-weight: 600;">vsl</div>
+                <div class="chart-container" style="height: 200px;">
+                  <canvas id="chart-analytics-vsl"></canvas>
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-center mb-2" style="color: #10b981; font-weight: 600;">vsl2</div>
+                <div class="chart-container" style="height: 200px;">
+                  <canvas id="chart-analytics-vsl2"></canvas>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -799,14 +817,17 @@
         let from;
         
         switch(range) {
-          case 'ontem':
-            from = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+          case 'hoje':
+            from = dayjs().format('YYYY-MM-DD');
             break;
           case '7days':
             from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
             break;
           case '30days':
             from = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+            break;
+          case 'alltime':
+            from = '2020-01-01'; // Data antiga para pegar tudo
             break;
           default:
             from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
@@ -1772,7 +1793,7 @@
               legend: {
                 position: 'right',
                 labels: {
-                  color: '#e5e5e5',
+                  color: '#fff',
                   padding: 15,
                   font: { size: 12, weight: '500' },
                   usePointStyle: true,
@@ -1784,6 +1805,8 @@
                       return {
                         text: `${label} (${percentage}%)`,
                         fillStyle: data.datasets[0].backgroundColor[i],
+                        strokeStyle: data.datasets[0].backgroundColor[i],
+                        fontColor: '#fff',
                         hidden: false,
                         index: i,
                       };
@@ -1859,82 +1882,73 @@
       // ========================================
 
       const renderAnalyticsViewsChart = (data) => {
-        const ctx = document.getElementById('chart-analytics-views');
-        if (!ctx) return;
+        const hostnames = [
+          { name: 'mentoria.boomlab.agency', id: 'chart-analytics-mentoria', color: '#8b5cf6' },
+          { name: 'vsl.boomlab.agency', id: 'chart-analytics-vsl', color: '#3b82f6' },
+          { name: 'vsl2.boomlab.agency', id: 'chart-analytics-vsl2', color: '#10b981' }
+        ];
 
-        if (charts.analyticsViews) charts.analyticsViews.destroy();
+        hostnames.forEach(({ name, id, color }) => {
+          const ctx = document.getElementById(id);
+          if (!ctx) return;
 
-        const hostnames = ['mentoria.boomlab.agency', 'vsl.boomlab.agency', 'vsl2.boomlab.agency'];
-        const colors = ['#8b5cf6', '#3b82f6', '#10b981'];
+          // Destroy previous chart
+          if (charts[id]) charts[id].destroy();
 
-        // Cria datasets por hostname
-        const datasets = hostnames.map((hostname, idx) => {
-          const hostnameData = data.analyticsByHostname[hostname];
-          if (!hostnameData) return null;
+          const hostnameData = data.analyticsByHostname[name];
+          if (!hostnameData) {
+            charts[id] = null;
+            return;
+          }
 
           const byDate = hostnameData.byDate;
           const dates = Object.keys(byDate).sort();
+          const labels = dates.map(d => dayjs(d).format('DD/MM'));
           const values = dates.map(date => byDate[date].sessions);
 
-          return {
-            label: hostname.replace('.boomlab.agency', ''),
-            data: values,
-            borderColor: colors[idx],
-            backgroundColor: colors[idx] + '20',
-            fill: true,
-            borderWidth: 2,
-            tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-          };
-        }).filter(d => d !== null);
-
-        // Usa as datas do primeiro dataset
-        const firstHostname = hostnames.find(h => data.analyticsByHostname[h]);
-        const labels = firstHostname 
-          ? Object.keys(data.analyticsByHostname[firstHostname].byDate).sort().map(d => dayjs(d).format('DD/MM'))
-          : [];
-
-        charts.analyticsViews = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets,
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: true,
-                position: 'top',
-                labels: {
-                  color: '#e5e5e5',
-                  font: { size: 12 },
-                  padding: 15,
-                  usePointStyle: true,
+          charts[id] = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Sessions',
+                data: values,
+                borderColor: color,
+                backgroundColor: color + '20',
+                fill: true,
+                borderWidth: 2,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: color,
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  backgroundColor: '#1a1a1a',
+                  titleColor: '#e5e5e5',
+                  bodyColor: '#9ca3af',
+                  borderColor: '#3a3a3a',
+                  borderWidth: 1,
                 },
               },
-              tooltip: {
-                backgroundColor: '#1a1a1a',
-                titleColor: '#e5e5e5',
-                bodyColor: '#9ca3af',
-                borderColor: '#3a3a3a',
-                borderWidth: 1,
+              scales: {
+                x: {
+                  ticks: { color: '#9ca3af', font: { size: 10 } },
+                  grid: { color: '#2a2a2a' },
+                },
+                y: {
+                  ticks: { color: '#9ca3af', font: { size: 10 } },
+                  grid: { color: '#2a2a2a' },
+                  beginAtZero: true,
+                },
               },
             },
-            scales: {
-              x: {
-                ticks: { color: '#9ca3af' },
-                grid: { color: '#2a2a2a' },
-              },
-              y: {
-                ticks: { color: '#9ca3af' },
-                grid: { color: '#2a2a2a' },
-                beginAtZero: true,
-              },
-            },
-          },
+          });
         });
       };
 
@@ -1987,10 +2001,6 @@
                 <div class="flex justify-between">
                   <span class="text-gray-400">Engagement:</span>
                   <span class="font-bold">${fmtPercent(engagementRate)}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-400">Bounce Rate:</span>
-                  <span class="font-bold">${fmtPercent(bounceRate)}</span>
                 </div>
               </div>
             </div>
