@@ -199,6 +199,11 @@
         border-bottom-color: #3b82f6;
       }
 
+      .analytics-range-btn.active,
+      .traffic-view-btn.active {
+        background: #3b82f6 !important;
+      }
+
       .tab-content {
         display: none;
       }
@@ -577,6 +582,55 @@
       <!-- TAB: FORMULÁRIOS -->
       <div id="tab-formularios" class="tab-content">
         
+        <!-- Analytics de Formulários -->
+        <div class="card rounded-lg p-6 mb-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">📈 Analytics de Formulários</h3>
+            <div class="flex gap-2">
+              <button class="btn analytics-range-btn" data-range="ontem" style="background: #374151; padding: 0.5rem 0.75rem;">Ontem</button>
+              <button class="btn analytics-range-btn active" data-range="7days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 7 dias</button>
+              <button class="btn analytics-range-btn" data-range="30days" style="background: #374151; padding: 0.5rem 0.75rem;">Últimos 30 dias</button>
+            </div>
+          </div>
+
+          <!-- Gráfico Temporal de Visualizações -->
+          <div class="mb-6">
+            <h4 class="text-sm font-semibold mb-3 text-gray-300">📊 Visualizações ao Longo do Tempo (Sessions)</h4>
+            <div class="chart-container">
+              <canvas id="chart-analytics-views"></canvas>
+            </div>
+          </div>
+
+          <!-- KPIs por Domínio -->
+          <div id="analytics-kpis-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- Populated via JS -->
+          </div>
+
+          <!-- Origem de Tráfego -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div>
+              <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-semibold text-gray-300">🌍 Origem do Tráfego</h4>
+                <div class="flex gap-2">
+                  <button class="btn traffic-view-btn active" data-view="channel" style="background: #374151; padding: 0.25rem 0.75rem; font-size: 0.875rem;">Por Canal</button>
+                  <button class="btn traffic-view-btn" data-view="source" style="background: #374151; padding: 0.25rem 0.75rem; font-size: 0.875rem;">Por Fonte</button>
+                </div>
+              </div>
+              <div class="chart-container">
+                <canvas id="chart-analytics-traffic"></canvas>
+              </div>
+            </div>
+
+            <!-- Conversões -->
+            <div>
+              <h4 class="text-sm font-semibold text-gray-300 mb-3">💡 Conversões (Respostas / Visualizações)</h4>
+              <div id="analytics-conversions" class="space-y-3">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Gráficos -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           
@@ -732,6 +786,9 @@
         chartView: 'week',
         loading: false,
         previousPeriodData: null,
+        analyticsDateRange: '7days', // ontem, 7days, 30days
+        analyticsData: null,
+        analyticsTrafficView: 'channel', // channel or source
       };
 
       const charts = {};
@@ -758,6 +815,141 @@
       const fmtDelta = (current, previous) => {
         if (!previous || previous === 0) return null;
         return ((current - previous) / previous) * 100;
+      };
+
+      const fmtDuration = (seconds) => {
+        if (!seconds) return '0s';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+      };
+
+      // ========================================
+      // ANALYTICS HELPERS
+      // ========================================
+
+      const extractHostname = (url) => {
+        if (!url) return 'Outro';
+        try {
+          const hostname = new URL(url).hostname;
+          if (hostname.includes('mentoria.boomlab.agency')) return 'mentoria.boomlab.agency';
+          if (hostname.includes('vsl2.boomlab.agency')) return 'vsl2.boomlab.agency';
+          if (hostname.includes('vsl.boomlab.agency')) return 'vsl.boomlab.agency';
+          return 'Outro';
+        } catch (e) {
+          return 'Outro';
+        }
+      };
+
+      const getAnalyticsDateRange = (range) => {
+        const to = dayjs().format('YYYY-MM-DD');
+        let from;
+        
+        switch(range) {
+          case 'ontem':
+            from = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+            break;
+          case '7days':
+            from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
+            break;
+          case '30days':
+            from = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+            break;
+          default:
+            from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
+        }
+
+        return { from, to };
+      };
+
+      const fetchAnalyticsForForms = async (range) => {
+        const { from, to } = getAnalyticsDateRange(range);
+
+        const [analyticsSummary, analyticsAcquisition, forms] = await Promise.all([
+          fetchAnalyticsUsersSummary(from, to),
+          fetchAnalyticsAcquisition(from, to),
+          fetchForms(from, to),
+        ]);
+
+        // Agrupa forms por hostname
+        const formsByHostname = {};
+        forms.forEach(f => {
+          const hostname = extractHostname(f.campaign_url);
+          if (!formsByHostname[hostname]) formsByHostname[hostname] = [];
+          formsByHostname[hostname].push(f);
+        });
+
+        // Agrupa analytics por hostname
+        const analyticsByHostname = {};
+        analyticsSummary.forEach(a => {
+          const hostname = a.hostname || 'Outro';
+          if (!analyticsByHostname[hostname]) {
+            analyticsByHostname[hostname] = {
+              sessions: 0,
+              unique_users: 0,
+              avg_session_duration: [],
+              engagement_rate: [],
+              bounce_rate: [],
+              byDate: {}
+            };
+          }
+          
+          analyticsByHostname[hostname].sessions += a.sessions || 0;
+          analyticsByHostname[hostname].unique_users += a.unique_users || 0;
+          if (a.avg_session_duration) analyticsByHostname[hostname].avg_session_duration.push(a.avg_session_duration);
+          if (a.engagement_rate) analyticsByHostname[hostname].engagement_rate.push(a.engagement_rate);
+          if (a.bounce_rate) analyticsByHostname[hostname].bounce_rate.push(a.bounce_rate);
+          
+          // Por data para gráfico temporal
+          const date = a.date;
+          if (!analyticsByHostname[hostname].byDate[date]) {
+            analyticsByHostname[hostname].byDate[date] = { sessions: 0, unique_users: 0 };
+          }
+          analyticsByHostname[hostname].byDate[date].sessions += a.sessions || 0;
+          analyticsByHostname[hostname].byDate[date].unique_users += a.unique_users || 0;
+        });
+
+        // Calcula médias
+        Object.keys(analyticsByHostname).forEach(hostname => {
+          const data = analyticsByHostname[hostname];
+          data.avg_session_duration_avg = data.avg_session_duration.length > 0
+            ? data.avg_session_duration.reduce((a, b) => a + b, 0) / data.avg_session_duration.length
+            : 0;
+          data.engagement_rate_avg = data.engagement_rate.length > 0
+            ? data.engagement_rate.reduce((a, b) => a + b, 0) / data.engagement_rate.length
+            : 0;
+          data.bounce_rate_avg = data.bounce_rate.length > 0
+            ? data.bounce_rate.reduce((a, b) => a + b, 0) / data.bounce_rate.length
+            : 0;
+        });
+
+        // Agrupa acquisition por hostname e channel
+        const acquisitionByHostname = {};
+        analyticsAcquisition.forEach(a => {
+          const hostname = a.hostname || 'Outro';
+          if (!acquisitionByHostname[hostname]) acquisitionByHostname[hostname] = {};
+          
+          const channel = a.session_channel_group || 'Unknown';
+          const source = a.session_source_medium || 'Unknown';
+          
+          if (!acquisitionByHostname[hostname][channel]) {
+            acquisitionByHostname[hostname][channel] = { sessions: 0, sources: {} };
+          }
+          
+          acquisitionByHostname[hostname][channel].sessions += a.sessions || 0;
+          
+          if (!acquisitionByHostname[hostname][channel].sources[source]) {
+            acquisitionByHostname[hostname][channel].sources[source] = 0;
+          }
+          acquisitionByHostname[hostname][channel].sources[source] += a.sessions || 0;
+        });
+
+        return {
+          formsByHostname,
+          analyticsByHostname,
+          acquisitionByHostname,
+          dateRange: { from, to }
+        };
       };
 
       // ========================================
@@ -796,6 +988,57 @@
           .lte('date_created', to + 'T23:59:59')
           .order('date_created', { ascending: false });
 
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchAnalyticsCore = async (from, to, hostname = null) => {
+        let query = supabase
+          .from('analytics_core')
+          .select('*')
+          .gte('date', from)
+          .lte('date', to)
+          .order('date', { ascending: true });
+
+        if (hostname) {
+          query = query.eq('hostname', hostname);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchAnalyticsUsersSummary = async (from, to, hostname = null) => {
+        let query = supabase
+          .from('analytics_users_summary')
+          .select('*')
+          .gte('date', from)
+          .lte('date', to)
+          .order('date', { ascending: true });
+
+        if (hostname) {
+          query = query.eq('hostname', hostname);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      };
+
+      const fetchAnalyticsAcquisition = async (from, to, hostname = null) => {
+        let query = supabase
+          .from('analytics_acquisition')
+          .select('*')
+          .gte('date', from)
+          .lte('date', to)
+          .order('date', { ascending: true });
+
+        if (hostname) {
+          query = query.eq('hostname', hostname);
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
         return data || [];
       };
@@ -1848,6 +2091,297 @@
         });
       };
 
+      // ========================================
+      // ANALYTICS RENDER
+      // ========================================
+
+      const renderAnalyticsViewsChart = (data) => {
+        const ctx = document.getElementById('chart-analytics-views');
+        if (!ctx) return;
+
+        if (charts.analyticsViews) charts.analyticsViews.destroy();
+
+        const hostnames = ['mentoria.boomlab.agency', 'vsl.boomlab.agency', 'vsl2.boomlab.agency'];
+        const colors = ['#8b5cf6', '#3b82f6', '#10b981'];
+
+        // Cria datasets por hostname
+        const datasets = hostnames.map((hostname, idx) => {
+          const hostnameData = data.analyticsByHostname[hostname];
+          if (!hostnameData) return null;
+
+          const byDate = hostnameData.byDate;
+          const dates = Object.keys(byDate).sort();
+          const values = dates.map(date => byDate[date].sessions);
+
+          return {
+            label: hostname.replace('.boomlab.agency', ''),
+            data: values,
+            borderColor: colors[idx],
+            backgroundColor: colors[idx] + '20',
+            fill: true,
+            borderWidth: 2,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          };
+        }).filter(d => d !== null);
+
+        // Usa as datas do primeiro dataset
+        const firstHostname = hostnames.find(h => data.analyticsByHostname[h]);
+        const labels = firstHostname 
+          ? Object.keys(data.analyticsByHostname[firstHostname].byDate).sort().map(d => dayjs(d).format('DD/MM'))
+          : [];
+
+        charts.analyticsViews = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets,
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  color: '#e5e5e5',
+                  font: { size: 12 },
+                  padding: 15,
+                  usePointStyle: true,
+                },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+              },
+              y: {
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+      };
+
+      const renderAnalyticsKPIs = (data) => {
+        const container = document.getElementById('analytics-kpis-container');
+        if (!container) return;
+
+        const hostnames = ['mentoria.boomlab.agency', 'vsl.boomlab.agency', 'vsl2.boomlab.agency'];
+        const colors = ['#8b5cf6', '#3b82f6', '#10b981'];
+
+        const html = hostnames.map((hostname, idx) => {
+          const analytics = data.analyticsByHostname[hostname];
+          const forms = data.formsByHostname[hostname] || [];
+          
+          if (!analytics) return '';
+
+          const views = analytics.sessions || 0;
+          const responses = forms.length;
+          const conversionRate = views > 0 ? (responses / views) * 100 : 0;
+          const avgDuration = analytics.avg_session_duration_avg || 0;
+          const engagementRate = analytics.engagement_rate_avg || 0;
+          const bounceRate = analytics.bounce_rate_avg || 0;
+
+          return `
+            <div class="card rounded-lg p-4 border-2" style="border-color: ${colors[idx]}50;">
+              <div class="text-sm font-semibold mb-3" style="color: ${colors[idx]};">
+                ${hostname.replace('.boomlab.agency', '')}
+              </div>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Total Views:</span>
+                  <span class="font-bold">${fmtNumber(views)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Utilizadores Únicos:</span>
+                  <span class="font-bold">${fmtNumber(analytics.unique_users)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Respostas:</span>
+                  <span class="font-bold text-green-500">${fmtNumber(responses)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Taxa Conversão:</span>
+                  <span class="font-bold" style="color: ${colors[idx]};">${fmtPercent(conversionRate)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Tempo Médio:</span>
+                  <span class="font-bold">${fmtDuration(avgDuration)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Engagement:</span>
+                  <span class="font-bold">${fmtPercent(engagementRate)}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Bounce Rate:</span>
+                  <span class="font-bold">${fmtPercent(bounceRate)}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = html;
+      };
+
+      const renderAnalyticsTrafficChart = (data, view = 'channel') => {
+        const ctx = document.getElementById('chart-analytics-traffic');
+        if (!ctx) return;
+
+        if (charts.analyticsTraffic) charts.analyticsTraffic.destroy();
+
+        // Agrega todos os hostnames
+        const aggregated = {};
+        Object.keys(data.acquisitionByHostname).forEach(hostname => {
+          const hostnameData = data.acquisitionByHostname[hostname];
+          Object.keys(hostnameData).forEach(channel => {
+            if (view === 'channel') {
+              aggregated[channel] = (aggregated[channel] || 0) + hostnameData[channel].sessions;
+            } else {
+              // view === 'source'
+              Object.keys(hostnameData[channel].sources).forEach(source => {
+                aggregated[source] = (aggregated[source] || 0) + hostnameData[channel].sources[source];
+              });
+            }
+          });
+        });
+
+        const sorted = Object.entries(aggregated).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(([key]) => key);
+        const values = sorted.map(([, val]) => val);
+        const total = values.reduce((a, b) => a + b, 0);
+
+        const colors = [
+          '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+        ];
+
+        charts.analyticsTraffic = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [{
+              data: values,
+              backgroundColor: colors.slice(0, labels.length),
+              borderColor: '#1a1a1a',
+              borderWidth: 2,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  color: '#e5e5e5',
+                  padding: 10,
+                  font: { size: 11 },
+                  usePointStyle: true,
+                  generateLabels: function(chart) {
+                    const data = chart.data;
+                    return data.labels.map((label, i) => {
+                      const value = data.datasets[0].data[i];
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return {
+                        text: `${label} (${percentage}%)`,
+                        fillStyle: data.datasets[0].backgroundColor[i],
+                        hidden: false,
+                        index: i,
+                      };
+                    });
+                  },
+                },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed;
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${label}: ${value} (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      };
+
+      const renderAnalyticsConversions = (data) => {
+        const container = document.getElementById('analytics-conversions');
+        if (!container) return;
+
+        const hostnames = ['mentoria.boomlab.agency', 'vsl.boomlab.agency', 'vsl2.boomlab.agency'];
+        const colors = ['#8b5cf6', '#3b82f6', '#10b981'];
+
+        const html = hostnames.map((hostname, idx) => {
+          const analytics = data.analyticsByHostname[hostname];
+          const forms = data.formsByHostname[hostname] || [];
+          
+          if (!analytics) return '';
+
+          const views = analytics.sessions || 0;
+          const responses = forms.length;
+          const conversionRate = views > 0 ? (responses / views) * 100 : 0;
+          const barWidth = Math.min(conversionRate, 100);
+
+          return `
+            <div class="card rounded-lg p-4">
+              <div class="flex justify-between items-center mb-2">
+                <div class="font-semibold text-sm" style="color: ${colors[idx]};">
+                  ${hostname.replace('.boomlab.agency', '')}
+                </div>
+                <div class="text-2xl font-bold" style="color: ${colors[idx]};">
+                  ${fmtPercent(conversionRate)}
+                </div>
+              </div>
+              <div class="h-2 bg-gray-800 rounded-full overflow-hidden mb-2">
+                <div class="h-full rounded-full" style="width: ${barWidth}%; background: ${colors[idx]};"></div>
+              </div>
+              <div class="flex justify-between text-xs text-gray-400">
+                <span>${fmtNumber(responses)} respostas</span>
+                <span>${fmtNumber(views)} visualizações</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = html;
+      };
+
+      const loadAnalyticsData = async () => {
+        try {
+          const data = await fetchAnalyticsForForms(state.analyticsDateRange);
+          state.analyticsData = data;
+
+          renderAnalyticsViewsChart(data);
+          renderAnalyticsKPIs(data);
+          renderAnalyticsTrafficChart(data, state.analyticsTrafficView);
+          renderAnalyticsConversions(data);
+        } catch (error) {
+          console.error('Error loading analytics:', error);
+        }
+      };
+
       const renderCalendar = (allMeetings) => {
         const calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
@@ -2197,6 +2731,43 @@
             if (targetTab === 'reunioes' && calendar) {
               setTimeout(() => calendar.render(), 100);
             }
+
+            // Load analytics if switching to formularios tab
+            if (targetTab === 'formularios' && !state.analyticsData) {
+              loadAnalyticsData();
+            }
+          });
+        });
+      };
+
+      const setupAnalyticsControls = () => {
+        // Date range buttons
+        const rangeButtons = document.querySelectorAll('.analytics-range-btn');
+        rangeButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const range = btn.getAttribute('data-range');
+            state.analyticsDateRange = range;
+
+            rangeButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            loadAnalyticsData();
+          });
+        });
+
+        // Traffic view toggle
+        const trafficButtons = document.querySelectorAll('.traffic-view-btn');
+        trafficButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const view = btn.getAttribute('data-view');
+            state.analyticsTrafficView = view;
+
+            trafficButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (state.analyticsData) {
+              renderAnalyticsTrafficChart(state.analyticsData, view);
+            }
           });
         });
       };
@@ -2232,6 +2803,7 @@
         setupTabs();
         setupSearch();
         setupFormsSearch();
+        setupAnalyticsControls();
 
         // Initial fetch
         await fetchAllData();
