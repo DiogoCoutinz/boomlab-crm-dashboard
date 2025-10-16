@@ -2032,14 +2032,25 @@
           });
         });
 
-        const sorted = Object.entries(aggregated).sort((a, b) => b[1] - a[1]);
+        let sorted = Object.entries(aggregated).sort((a, b) => b[1] - a[1]);
+        
+        // Limita a 10 itens em "Por Fonte" para não ficar poluído
+        if (view === 'source' && sorted.length > 10) {
+          const top10 = sorted.slice(0, 10);
+          const othersValue = sorted.slice(10).reduce((sum, [, val]) => sum + val, 0);
+          if (othersValue > 0) {
+            top10.push(['Outros', othersValue]);
+          }
+          sorted = top10;
+        }
+
         const labels = sorted.map(([key]) => key);
         const values = sorted.map(([, val]) => val);
         const total = values.reduce((a, b) => a + b, 0);
 
         const colors = [
           '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
-          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#9ca3af'
         ];
 
         charts.analyticsTraffic = new Chart(ctx, {
@@ -2060,7 +2071,7 @@
               legend: {
                 position: 'right',
                 labels: {
-                  color: '#e5e5e5',
+                  color: '#fff',
                   padding: 10,
                   font: { size: 11 },
                   usePointStyle: true,
@@ -2072,6 +2083,8 @@
                       return {
                         text: `${label} (${percentage}%)`,
                         fillStyle: data.datasets[0].backgroundColor[i],
+                        strokeStyle: data.datasets[0].backgroundColor[i],
+                        fontColor: '#fff',
                         hidden: false,
                         index: i,
                       };
