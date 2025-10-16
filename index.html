@@ -631,57 +631,12 @@
           </div>
         </div>
 
-        <!-- Gráficos -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          
-          <!-- Chart: Formulários Preenchidos -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">Formulários Preenchidos</h3>
-            <div class="chart-container">
-              <canvas id="chart-forms"></canvas>
-            </div>
+        <!-- Gráficos Adicionais por Domínio -->
+        <div class="card rounded-lg p-6 mb-6">
+          <h3 class="text-lg font-semibold mb-4">📊 Formulários por Domínio</h3>
+          <div class="chart-container">
+            <canvas id="chart-forms-by-domain"></canvas>
           </div>
-
-          <!-- Chart: Origem (contact_source) -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">Origem dos Formulários</h3>
-            <div class="chart-container">
-              <canvas id="chart-forms-source"></canvas>
-            </div>
-          </div>
-
-          <!-- Chart: Faturação Anual -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">Faturação Anual</h3>
-            <div class="chart-container">
-              <canvas id="chart-forms-faturacao"></canvas>
-            </div>
-          </div>
-
-          <!-- Chart: Interesse Mentoria -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">Interesse Mentoria</h3>
-            <div class="chart-container">
-              <canvas id="chart-forms-interesse"></canvas>
-            </div>
-          </div>
-
-          <!-- Stats: UTM Source -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">📊 UTM Source</h3>
-            <div id="forms-utm-source" class="space-y-2">
-              <!-- Populated via JS -->
-            </div>
-          </div>
-
-          <!-- Stats: Cargo -->
-          <div class="card rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-4">💼 Cargo</h3>
-            <div id="forms-cargo" class="space-y-2">
-              <!-- Populated via JS -->
-            </div>
-          </div>
-
         </div>
 
         <!-- Search + Table -->
@@ -702,9 +657,7 @@
                   <th>Nome</th>
                   <th>Email</th>
                   <th>País</th>
-                  <th>Faturação</th>
-                  <th>Cargo</th>
-                  <th>Origem</th>
+                  <th>Domínio</th>
                   <th>Data</th>
                 </tr>
               </thead>
@@ -1766,94 +1719,51 @@
         document.getElementById('owners-ranking').innerHTML = html || '<div class="text-center text-gray-500 py-4">Sem dados disponíveis</div>';
       };
 
-      const renderFormsChart = (forms) => {
-        const ctx = document.getElementById('chart-forms');
+      const renderFormsByDomainChart = (forms) => {
+        const ctx = document.getElementById('chart-forms-by-domain');
         if (!ctx) return;
 
-        if (charts.forms) charts.forms.destroy();
+        if (charts.formsByDomain) charts.formsByDomain.destroy();
 
-        const { grouped, sortKeys } = groupByPeriod(forms, 'date_created', state.chartView);
-        const labels = Object.keys(grouped).sort((a, b) => sortKeys[a].localeCompare(sortKeys[b]));
-        const data = labels.map((label) => grouped[label].length);
-
-        charts.forms = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: 'Formulários Preenchidos',
-                data,
-                borderColor: '#8b5cf6',
-                backgroundColor: '#8b5cf620',
-                fill: true,
-                borderWidth: 3,
-                tension: 0.4,
-                pointRadius: 3,
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#8b5cf6',
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1a1a1a',
-                titleColor: '#e5e5e5',
-                bodyColor: '#9ca3af',
-                borderColor: '#3a3a3a',
-                borderWidth: 1,
-              },
-            },
-            scales: {
-              x: { 
-                ticks: { 
-                  color: '#9ca3af',
-                  maxRotation: 45,
-                  minRotation: 45
-                }, 
-                grid: { color: '#2a2a2a' } 
-              },
-              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
-            },
-          },
-        });
-      };
-
-      const renderFormsSourceChart = (forms) => {
-        const ctx = document.getElementById('chart-forms-source');
-        if (!ctx) return;
-
-        if (charts.formsSource) charts.formsSource.destroy();
-
-        const bySource = {};
+        // Agrupa por hostname
+        const byHostname = {};
         forms.forEach(f => {
-          const source = f.contact_source || 'Unknown';
-          bySource[source] = (bySource[source] || 0) + 1;
+          const hostname = extractHostname(f.campaign_url);
+          byHostname[hostname] = (byHostname[hostname] || 0) + 1;
         });
 
-        const sorted = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
-        const labels = sorted.map(([source]) => source);
-        const data = sorted.map(([, count]) => count);
+        // Separa os 3 principais e "Outro"
+        const mainDomains = ['mentoria.boomlab.agency', 'vsl.boomlab.agency', 'vsl2.boomlab.agency'];
+        const labels = [];
+        const data = [];
+        const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#9ca3af'];
+
+        mainDomains.forEach(domain => {
+          if (byHostname[domain]) {
+            labels.push(domain.replace('.boomlab.agency', ''));
+            data.push(byHostname[domain]);
+          }
+        });
+
+        // Adiciona "Outro" se existir
+        const otherCount = byHostname['Outro'] || 0;
+        if (otherCount > 0) {
+          labels.push('Outro');
+          data.push(otherCount);
+        }
+
         const total = forms.length;
 
-        const colors = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
-
-        charts.formsSource = new Chart(ctx, {
+        charts.formsByDomain = new Chart(ctx, {
           type: 'doughnut',
           data: {
             labels,
-            datasets: [
-              {
-                data,
-                backgroundColor: colors.slice(0, labels.length),
-                borderColor: '#1a1a1a',
-                borderWidth: 2,
-              },
-            ],
+            datasets: [{
+              data,
+              backgroundColor: colors.slice(0, labels.length),
+              borderColor: '#1a1a1a',
+              borderWidth: 2,
+            }],
           },
           options: {
             responsive: true,
@@ -1862,7 +1772,7 @@
               legend: {
                 position: 'right',
                 labels: {
-                  color: '#fff',
+                  color: '#e5e5e5',
                   padding: 15,
                   font: { size: 12, weight: '500' },
                   usePointStyle: true,
@@ -1874,19 +1784,17 @@
                       return {
                         text: `${label} (${percentage}%)`,
                         fillStyle: data.datasets[0].backgroundColor[i],
-                        strokeStyle: data.datasets[0].backgroundColor[i],
-                        fontColor: '#fff',
                         hidden: false,
-                        index: i
+                        index: i,
                       };
                     });
-                  }
+                  },
                 },
               },
               tooltip: {
                 backgroundColor: '#1a1a1a',
-                titleColor: '#fff',
-                bodyColor: '#e5e5e5',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
                 borderColor: '#3a3a3a',
                 borderWidth: 1,
                 callbacks: {
@@ -1895,159 +1803,12 @@
                     const value = context.parsed;
                     const percentage = ((value / total) * 100).toFixed(1);
                     return `${label}: ${value} (${percentage}%)`;
-                  }
-                }
+                  },
+                },
               },
             },
           },
         });
-      };
-
-      const renderFormsFaturacaoChart = (forms) => {
-        const ctx = document.getElementById('chart-forms-faturacao');
-        if (!ctx) return;
-
-        if (charts.formsFaturacao) charts.formsFaturacao.destroy();
-
-        const byFaturacao = {};
-        forms.forEach(f => {
-          const fat = f.faturacao_anual || 'Não especificado';
-          byFaturacao[fat] = (byFaturacao[fat] || 0) + 1;
-        });
-
-        const sorted = Object.entries(byFaturacao).sort((a, b) => b[1] - a[1]);
-        const labels = sorted.map(([fat]) => fat);
-        const data = sorted.map(([, count]) => count);
-
-        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-        charts.formsFaturacao = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: 'Faturação Anual',
-                data,
-                backgroundColor: colors.slice(0, labels.length),
-                borderColor: '#1a1a1a',
-                borderWidth: 1,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1a1a1a',
-                titleColor: '#e5e5e5',
-                bodyColor: '#9ca3af',
-                borderColor: '#3a3a3a',
-                borderWidth: 1,
-              },
-            },
-            scales: {
-              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
-              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
-            },
-          },
-        });
-      };
-
-      const renderFormsInteresseChart = (forms) => {
-        const ctx = document.getElementById('chart-forms-interesse');
-        if (!ctx) return;
-
-        if (charts.formsInteresse) charts.formsInteresse.destroy();
-
-        const byInteresse = {};
-        forms.forEach(f => {
-          const interesse = f.interesse_mentoria || 'Não especificado';
-          byInteresse[interesse] = (byInteresse[interesse] || 0) + 1;
-        });
-
-        const sorted = Object.entries(byInteresse).sort((a, b) => b[1] - a[1]);
-        const labels = sorted.map(([int]) => int);
-        const data = sorted.map(([, count]) => count);
-
-        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-        charts.formsInteresse = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: 'Interesse Mentoria',
-                data,
-                backgroundColor: colors.slice(0, labels.length),
-                borderColor: '#1a1a1a',
-                borderWidth: 1,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1a1a1a',
-                titleColor: '#e5e5e5',
-                bodyColor: '#9ca3af',
-                borderColor: '#3a3a3a',
-                borderWidth: 1,
-              },
-            },
-            scales: {
-              x: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' }, beginAtZero: true },
-              y: { ticks: { color: '#9ca3af' }, grid: { color: '#2a2a2a' } },
-            },
-          },
-        });
-      };
-
-      const renderFormsUtmSource = (forms) => {
-        const byUtm = {};
-        forms.forEach(f => {
-          const utm = f.utm_source || 'Não especificado';
-          byUtm[utm] = (byUtm[utm] || 0) + 1;
-        });
-
-        const sorted = Object.entries(byUtm).sort((a, b) => b[1] - a[1]);
-        const html = sorted.map(([utm, count]) => {
-          return `
-            <div class="flex justify-between py-2 border-b border-gray-800">
-              <span class="text-gray-300">${utm}</span>
-              <span class="font-bold text-purple-400">${count}</span>
-            </div>
-          `;
-        }).join('');
-
-        document.getElementById('forms-utm-source').innerHTML = html || '<div class="text-center text-gray-500">Sem dados</div>';
-      };
-
-      const renderFormsCargo = (forms) => {
-        const byCargo = {};
-        forms.forEach(f => {
-          const cargo = f.cargo || 'Não especificado';
-          byCargo[cargo] = (byCargo[cargo] || 0) + 1;
-        });
-
-        const sorted = Object.entries(byCargo).sort((a, b) => b[1] - a[1]);
-        const html = sorted.map(([cargo, count]) => {
-          return `
-            <div class="flex justify-between py-2 border-b border-gray-800">
-              <span class="text-gray-300">${cargo}</span>
-              <span class="font-bold text-blue-400">${count}</span>
-            </div>
-          `;
-        }).join('');
-
-        document.getElementById('forms-cargo').innerHTML = html || '<div class="text-center text-gray-500">Sem dados</div>';
       };
 
       const renderFormsTable = (forms) => {
@@ -2057,21 +1818,24 @@
         const html = forms
           .slice(0, 100)
           .map((form) => {
+            const hostname = extractHostname(form.campaign_url);
+            const domainLabel = hostname === 'Outro' 
+              ? '<span class="text-yellow-500">⚠️ Outro</span>' 
+              : hostname.replace('.boomlab.agency', '');
+            
             return `
             <tr>
               <td>${form.full_name || '—'}</td>
               <td class="text-sm font-mono">${form.email || '—'}</td>
               <td>${form.country || '—'}</td>
-              <td>${form.faturacao_anual || '—'}</td>
-              <td>${form.cargo || '—'}</td>
-              <td class="text-sm">${form.contact_source || '—'}</td>
+              <td class="text-sm">${domainLabel}</td>
               <td class="text-sm">${fmtDate(form.date_created)}</td>
             </tr>
           `;
           })
           .join('');
 
-        tbody.innerHTML = html || '<tr><td colspan="7" class="text-center text-gray-500">Sem formulários</td></tr>';
+        tbody.innerHTML = html || '<tr><td colspan="5" class="text-center text-gray-500">Sem formulários</td></tr>';
       };
 
       const setupFormsSearch = () => {
@@ -2083,9 +1847,8 @@
           const filtered = state.forms.filter(f => {
             const name = (f.full_name || '').toLowerCase();
             const email = (f.email || '').toLowerCase();
-            const cargo = (f.cargo || '').toLowerCase();
-            const source = (f.contact_source || '').toLowerCase();
-            return name.includes(query) || email.includes(query) || cargo.includes(query) || source.includes(query);
+            const hostname = extractHostname(f.campaign_url).toLowerCase();
+            return name.includes(query) || email.includes(query) || hostname.includes(query);
           });
           renderFormsTable(filtered);
         });
@@ -2377,6 +2140,12 @@
           renderAnalyticsKPIs(data);
           renderAnalyticsTrafficChart(data, state.analyticsTrafficView);
           renderAnalyticsConversions(data);
+
+          // Detecta registos "Outro" para revisão
+          const otherForms = data.formsByHostname['Outro'] || [];
+          if (otherForms.length > 0) {
+            console.warn(`⚠️ ${otherForms.length} formulário(s) sem domínio válido detectados:`, otherForms);
+          }
         } catch (error) {
           console.error('Error loading analytics:', error);
         }
@@ -2648,13 +2417,16 @@
           renderConsultantsRanking(meetings);
           renderConsultantsStats(meetings);
           renderOwnersRanking(meetings);
-          renderFormsChart(forms);
-          renderFormsSourceChart(forms);
-          renderFormsFaturacaoChart(forms);
-          renderFormsInteresseChart(forms);
-          renderFormsUtmSource(forms);
-          renderFormsCargo(forms);
+          renderFormsByDomainChart(forms);
           renderFormsTable(forms);
+
+          // Log de classificação de formulários por hostname
+          const formsByHostname = {};
+          forms.forEach(f => {
+            const hostname = extractHostname(f.campaign_url);
+            formsByHostname[hostname] = (formsByHostname[hostname] || 0) + 1;
+          });
+          console.log('📊 Formulários classificados por domínio:', formsByHostname);
 
           // Update timestamp
           document.getElementById('last-update').textContent = dayjs().tz(CONFIG.timezone).format('HH:mm');
