@@ -661,7 +661,12 @@
         <!-- Search + Table -->
         <div class="card rounded-lg p-6">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold">Lista de Formulários</h3>
+            <div>
+              <h3 class="text-lg font-semibold">Lista de Formulários</h3>
+              <div id="forms-period-label" class="text-xs text-gray-500 mt-1">
+                <!-- Populated via JS -->
+              </div>
+            </div>
             <input
               type="text"
               id="search-forms"
@@ -1872,7 +1877,12 @@
         
         searchInput.addEventListener('input', (e) => {
           const query = e.target.value.toLowerCase();
-          const filtered = state.forms.filter(f => {
+          
+          // Usa os forms do analyticsData (já filtrados pelo período)
+          if (!state.analyticsData) return;
+          
+          const allForms = Object.values(state.analyticsData.formsByHostname).flat();
+          const filtered = allForms.filter(f => {
             const name = (f.full_name || '').toLowerCase();
             const email = (f.email || '').toLowerCase();
             const hostname = extractHostname(f.campaign_url).toLowerCase();
@@ -2174,10 +2184,36 @@
           const data = await fetchAnalyticsForForms(state.analyticsDateRange);
           state.analyticsData = data;
 
+          // Coleta todos os forms do período filtrado
+          const allForms = Object.values(data.formsByHostname).flat();
+
           renderAnalyticsViewsChart(data, state.analyticsDateRange);
           renderAnalyticsKPIs(data);
           renderAnalyticsTrafficChart(data, state.analyticsTrafficView);
           renderAnalyticsConversions(data);
+          
+          // Atualiza também o gráfico e tabela de formulários com os dados filtrados
+          renderFormsByDomainChart(allForms);
+          renderFormsTable(allForms);
+
+          // Limpa a pesquisa quando muda o filtro
+          const searchInput = document.getElementById('search-forms');
+          if (searchInput) searchInput.value = '';
+
+          // Atualiza label do período
+          const rangeLabel = {
+            'hoje': 'Hoje',
+            'ontem': 'Ontem',
+            '7days': 'Últimos 7 dias',
+            '30days': 'Últimos 30 dias',
+            'alltime': 'All Time'
+          };
+          const periodLabel = document.getElementById('forms-period-label');
+          if (periodLabel) {
+            periodLabel.textContent = `Mostrando ${allForms.length} formulário(s) · ${rangeLabel[state.analyticsDateRange] || state.analyticsDateRange} (${dayjs(data.dateRange.from).format('DD/MM/YYYY')} - ${dayjs(data.dateRange.to).format('DD/MM/YYYY')})`;
+          }
+          
+          console.log(`📊 Formulários (${rangeLabel[state.analyticsDateRange] || state.analyticsDateRange}): ${allForms.length} registos | Período: ${data.dateRange.from} a ${data.dateRange.to}`);
 
           // Detecta registos "Outro" para revisão
           const otherForms = data.formsByHostname['Outro'] || [];
@@ -2455,16 +2491,9 @@
           renderConsultantsRanking(meetings);
           renderConsultantsStats(meetings);
           renderOwnersRanking(meetings);
-          renderFormsByDomainChart(forms);
-          renderFormsTable(forms);
-
-          // Log de classificação de formulários por hostname
-          const formsByHostname = {};
-          forms.forEach(f => {
-            const hostname = extractHostname(f.campaign_url);
-            formsByHostname[hostname] = (formsByHostname[hostname] || 0) + 1;
-          });
-          console.log('📊 Formulários classificados por domínio:', formsByHostname);
+          
+          // Forms são renderizados pelo loadAnalyticsData, não aqui
+          // Mantemos state.forms para referência mas não renderizamos diretamente
 
           // Update timestamp
           document.getElementById('last-update').textContent = dayjs().tz(CONFIG.timezone).format('HH:mm');
